@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion'
 import { ArrowLeftRight, CalendarCheck, Layers } from 'lucide-react'
 import { ImageReveal, RevealOnScroll } from '../motion'
 import { StatusBadge } from '../ui/StatusBadge'
@@ -70,7 +71,13 @@ export function SmartMatching() {
                       <p className="font-mono text-xs text-muted">{ind.value}% illustrative</p>
                     </div>
                     <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-line">
-                      <div className="h-full rounded-full bg-ink" style={{ width: `${ind.value}%` }} />
+                      <motion.div
+                        className="h-full rounded-full bg-ink"
+                        initial={{ width: 0 }}
+                        whileInView={{ width: `${ind.value}%` }}
+                        viewport={{ once: true, margin: '-40px' }}
+                        transition={{ duration: 1, delay: 0.2, ease: [0.21, 0.6, 0.35, 1] }}
+                      />
                     </div>
                   </div>
                 </li>
@@ -110,10 +117,14 @@ export function SmartMatching() {
               Possible found matches
             </p>
             <ul className="mt-4 space-y-4">
-              {matches.map((m) => (
-                <li
+              {matches.map((m, i) => (
+                <motion.li
                   key={m.title}
-                  className="flex items-center gap-4 rounded-[3px] border border-line bg-mist/60 p-4"
+                  className="flex items-center gap-4 rounded-[3px] border border-line bg-mist/60 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-ink hover:bg-paper hover:shadow-[0_12px_30px_rgba(0,0,0,0.06)]"
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.55, delay: 0.15 + i * 0.12, ease: [0.21, 0.6, 0.35, 1] }}
                 >
                   <img
                     src={m.image}
@@ -131,10 +142,18 @@ export function SmartMatching() {
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="font-mono text-lg font-semibold">{m.similarity}%</p>
+                    <motion.p
+                      className="font-mono text-lg font-semibold"
+                      initial={{ opacity: 0 }}
+                      whileInView={{ opacity: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4, delay: 0.4 + i * 0.12 }}
+                    >
+                      {m.similarity}%
+                    </motion.p>
                     <p className="text-[10px] uppercase tracking-[0.1em] text-muted">illustrative</p>
                   </div>
-                </li>
+                </motion.li>
               ))}
             </ul>
             <p className="mt-6 text-[11px] leading-relaxed text-muted">

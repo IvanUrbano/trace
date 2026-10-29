@@ -1,3 +1,4 @@
+import { motion, useScroll, useSpring } from 'framer-motion'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
@@ -16,6 +17,8 @@ export function Navbar() {
   const [open, setOpen] = useState(false)
   const { user } = useStore()
   const location = useLocation()
+  const { scrollYProgress } = useScroll()
+  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.3 })
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12)
@@ -35,6 +38,11 @@ export function Navbar() {
           : 'border-b border-transparent bg-transparent',
       )}
     >
+      <motion.div
+        className="absolute inset-x-0 bottom-0 h-px origin-left bg-ink"
+        style={{ scaleX: progress }}
+        aria-hidden
+      />
       <div className="container-x flex h-16 items-center justify-between">
         <Link to="/" className="text-lg font-bold tracking-[0.28em]" aria-label="TRACE home">
           TRACE
