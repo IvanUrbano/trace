@@ -4,46 +4,27 @@ import { Button } from '../ui/Button'
 
 const words = ['Lost', 'something?', "Let's", 'bring', 'it', 'back.']
 
-const tiles = [
-  {
-    src: '/img/wallet.jpg',
-    alt: 'Black leather wallet found on a bench',
-    tag: 'University Library',
-    className: 'col-start-1 row-start-1',
-    float: { y: [0, -7, 0] },
-    duration: 5.5,
-  },
-  {
-    src: '/img/headphones.jpg',
-    alt: 'Wireless headphones found in a study booth',
-    tag: 'Tech Hub',
-    className: 'col-start-2 row-start-1',
-    float: { y: [0, 8, 0] },
-    duration: 6.5,
-  },
-  {
-    src: '/img/keys.jpg',
-    alt: 'Silver keys with keychain',
-    tag: 'Parking Garage',
-    className: 'col-start-1 row-start-2',
-    float: { y: [0, 6, 0] },
-    duration: 7,
-  },
-  {
-    src: '/img/tote.jpg',
-    alt: 'Canvas tote bag left at a cafe',
-    tag: 'Campus Cafe',
-    className: 'col-start-2 row-start-2',
-    float: { y: [0, -6, 0] },
-    duration: 6,
-  },
-]
-
 export function HeroSection() {
   const reduce = useReducedMotion()
   return (
     <section className="relative flex min-h-screen flex-col justify-center overflow-hidden pt-24 pb-16">
-      <div className="container-x grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8">
+      {/* Soft background: gradient + subtle dot grid */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-mist via-paper to-paper"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.45]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, #d4d4d4 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+          maskImage: 'radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 75%)',
+        }}
+      />
+
+      <div className="container-x relative grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8">
         <div>
           <motion.p
             className="eyebrow"
@@ -102,48 +83,97 @@ export function HeroSection() {
           </motion.p>
         </div>
 
-        <div className="relative mx-auto w-full max-w-xl">
-          <div className="grid grid-cols-2 gap-4 sm:gap-5">
-            {tiles.map((tile, i) => (
-              <motion.div
-                key={tile.src}
-                className={tile.className}
-                initial={reduce ? false : { opacity: 0, y: 32, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.8, delay: 0.3 + i * 0.12, ease: [0.21, 0.6, 0.35, 1] }}
-              >
-                <motion.figure
-                  className="group relative overflow-hidden rounded-[4px] border border-line bg-mist shadow-[0_16px_50px_rgba(0,0,0,0.07)]"
-                  animate={reduce ? undefined : tile.float}
-                  transition={{
-                    duration: tile.duration,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                    delay: i * 0.4,
-                  }}
-                >
-                  <div className="aspect-[4/3] overflow-hidden">
-                    <img
-                      src={tile.src}
-                      alt={tile.alt}
-                      className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
-                    />
-                  </div>
-                  <figcaption className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/55 to-transparent px-3 pb-2.5 pt-8 text-[11px] font-medium tracking-wide text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    <MapPin className="h-3 w-3" strokeWidth={2} />
-                    {tile.tag}
-                  </figcaption>
-                  <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-paper/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] shadow-sm">
-                    <span className="h-1.5 w-1.5 rounded-full bg-ink" />
-                    Found
-                  </span>
-                </motion.figure>
-              </motion.div>
-            ))}
-          </div>
+        {/* Staggered editorial collage */}
+        <div className="relative mx-auto h-[480px] w-full max-w-lg sm:h-[520px]">
+          {/* Large card — backpack */}
+          <motion.figure
+            className="group absolute left-0 top-6 w-[62%] overflow-hidden rounded-[4px] border border-line bg-paper shadow-[0_20px_60px_rgba(0,0,0,0.08)]"
+            initial={reduce ? false : { opacity: 0, y: 36, rotate: -2 }}
+            animate={{ opacity: 1, y: 0, rotate: -2 }}
+            transition={{ duration: 0.85, delay: 0.3, ease: [0.21, 0.6, 0.35, 1] }}
+            whileHover={reduce ? undefined : { rotate: 0, y: -6, transition: { duration: 0.35 } }}
+          >
+            <div className="aspect-[3/4] overflow-hidden">
+              <img
+                src="/img/backpack.jpg"
+                alt="Navy backpack turned in at the bus terminal"
+                className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+              />
+            </div>
+            <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent px-4 pb-4 pt-12">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/80">Found</p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-white">
+                <MapPin className="h-3.5 w-3.5" strokeWidth={2} />
+                City Bus Terminal
+              </p>
+            </figcaption>
+          </motion.figure>
+
+          {/* Medium card — camera, offset top-right */}
+          <motion.figure
+            className="group absolute right-0 top-0 w-[44%] overflow-hidden rounded-[4px] border border-line bg-paper shadow-[0_16px_44px_rgba(0,0,0,0.07)]"
+            initial={reduce ? false : { opacity: 0, y: 28, rotate: 2.5 }}
+            animate={{ opacity: 1, y: 0, rotate: 2.5 }}
+            transition={{ duration: 0.85, delay: 0.48, ease: [0.21, 0.6, 0.35, 1] }}
+            whileHover={reduce ? undefined : { rotate: 0, y: -5, transition: { duration: 0.35 } }}
+          >
+            <div className="aspect-[4/3] overflow-hidden">
+              <img
+                src="/img/camera.jpg"
+                alt="Compact digital camera lost at the pavilion"
+                className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+              />
+            </div>
+            <figcaption className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/55 to-transparent px-3 pb-2.5 pt-8 text-[11px] font-medium text-white">
+              <MapPin className="h-3 w-3" strokeWidth={2} />
+              Central Park
+            </figcaption>
+          </motion.figure>
+
+          {/* Small card — sunglasses, mid-right */}
+          <motion.figure
+            className="group absolute right-[4%] top-[46%] w-[38%] overflow-hidden rounded-[4px] border border-line bg-paper shadow-[0_14px_36px_rgba(0,0,0,0.06)]"
+            initial={reduce ? false : { opacity: 0, y: 24, rotate: -1.5 }}
+            animate={{ opacity: 1, y: 0, rotate: -1.5 }}
+            transition={{ duration: 0.85, delay: 0.62, ease: [0.21, 0.6, 0.35, 1] }}
+            whileHover={reduce ? undefined : { rotate: 0, y: -5, transition: { duration: 0.35 } }}
+          >
+            <div className="aspect-square overflow-hidden">
+              <img
+                src="/img/sunglasses.jpg"
+                alt="Black sunglasses found at the gym"
+                className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+              />
+            </div>
+            <figcaption className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/55 to-transparent px-3 pb-2.5 pt-8 text-[11px] font-medium text-white">
+              <MapPin className="h-3 w-3" strokeWidth={2} />
+              Riverside Gym
+            </figcaption>
+          </motion.figure>
+
+          {/* Small card — watch, bottom-left overlap */}
+          <motion.figure
+            className="group absolute bottom-0 left-[18%] w-[36%] overflow-hidden rounded-[4px] border border-line bg-paper shadow-[0_14px_36px_rgba(0,0,0,0.06)]"
+            initial={reduce ? false : { opacity: 0, y: 24, rotate: 2 }}
+            animate={{ opacity: 1, y: 0, rotate: 2 }}
+            transition={{ duration: 0.85, delay: 0.76, ease: [0.21, 0.6, 0.35, 1] }}
+            whileHover={reduce ? undefined : { rotate: 0, y: -5, transition: { duration: 0.35 } }}
+          >
+            <div className="aspect-[5/4] overflow-hidden">
+              <img
+                src="/img/watch.jpg"
+                alt="Analog wrist watch left on a cafe counter"
+                className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+              />
+            </div>
+            <figcaption className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/55 to-transparent px-3 pb-2.5 pt-8 text-[11px] font-medium text-white">
+              <MapPin className="h-3 w-3" strokeWidth={2} />
+              Campus Cafe
+            </figcaption>
+          </motion.figure>
 
           <motion.div
-            className="absolute -bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-line bg-paper px-5 py-2.5 text-xs font-medium shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
+            className="absolute -bottom-6 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-line bg-paper px-5 py-2.5 text-xs font-medium shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
             initial={reduce ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.05, duration: 0.6, ease: [0.21, 0.6, 0.35, 1] }}
