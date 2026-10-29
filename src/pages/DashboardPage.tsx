@@ -18,7 +18,7 @@ const tabs = [
 type TabId = (typeof tabs)[number]['id']
 
 export function DashboardPage() {
-  const { user, items, notificationsFor, markAllNotificationsRead, itemsByOwner, claimsByUser } = useStore()
+  const { user, items, notificationsFor, markAllNotificationsRead, itemsByOwner, claimsByUser, signOut } = useStore()
   const [params, setParams] = useSearchParams()
   const active = (params.get('tab') as TabId) || 'lost'
   const [historyFor, setHistoryFor] = useState<string | null>(null)
@@ -61,7 +61,17 @@ export function DashboardPage() {
           <p className="eyebrow">Dashboard</p>
           <h1 className="h2-section mt-3">Welcome back, {user.name.split(' ')[0]}.</h1>
         </div>
-        <Button asChildLink="/report">New Report</Button>
+        <div className="flex gap-3">
+          {user.role === 'admin' && (
+            <Button asChildLink="/admin" variant="secondary">
+              Admin
+            </Button>
+          )}
+          <Button asChildLink="/report">New Report</Button>
+          <Button variant="ghost" onClick={signOut}>
+            Sign Out
+          </Button>
+        </div>
       </div>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[240px_1fr]">

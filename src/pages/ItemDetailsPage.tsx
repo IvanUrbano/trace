@@ -13,9 +13,11 @@ import { formatDate } from '../lib/utils'
 
 export function ItemDetailsPage() {
   const { id } = useParams()
-  const { items, user, toast } = useStore()
+  const { items, user, toast, claims } = useStore()
   const item = items.find((i) => i.id === id)
   const [activeImg, setActiveImg] = useState(0)
+  const existingClaim =
+    user && item ? claims.find((c) => c.itemId === item.id && c.claimantId === user.id) : undefined
 
   if (!item) {
     return (
@@ -122,8 +124,18 @@ export function ItemDetailsPage() {
             </p>
 
             <div className="mt-8 space-y-3">
-              {item.type === 'found' && item.status !== 'returned' && (
+              {item.type === 'found' && item.status !== 'returned' && !existingClaim && user && (
                 <ClaimForm item={item} />
+              )}
+              {item.type === 'found' && item.status !== 'returned' && !user && (
+                <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
+                  Submit a Claim
+                </Button>
+              )}
+              {existingClaim && (
+                <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
+                  View My Claim
+                </Button>
               )}
               {item.type === 'lost' && (
                 <Button
@@ -142,7 +154,7 @@ export function ItemDetailsPage() {
               )}
               {item.type === 'found' && !user && (
                 <p className="text-xs text-muted">
-                  You can browse as a guest — <Link to="/signin" className="underline underline-offset-4">sign in</Link> to submit a claim faster.
+                  You can browse as a guest — <Link to="/signin" className="underline underline-offset-4">sign in</Link> to track a claim.
                 </p>
               )}
               {isOwner && (

@@ -40,11 +40,22 @@ export function ReportForm() {
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
-    const urls = Array.from(files)
+    const selected = Array.from(files)
       .filter((f) => f.type.startsWith('image/'))
       .slice(0, 4)
-      .map((f) => URL.createObjectURL(f))
-    setPreviews((p) => [...p, ...urls].slice(0, 4))
+    void Promise.all(
+      selected.map(
+        (f) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(String(reader.result))
+            reader.onerror = () => reject(new Error('Failed to read image'))
+            reader.readAsDataURL(f)
+          }),
+      ),
+    ).then((urls) => {
+      setPreviews((p) => [...p, ...urls].slice(0, 4))
+    })
   }
 
   const removePreview = (idx: number) => setPreviews((p) => p.filter((_, i) => i !== idx))

@@ -265,6 +265,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ),
           )
         }
+        if (status === 'rejected') {
+          const otherOpenClaims = claims.some(
+            (c) =>
+              c.itemId === claim.itemId &&
+              c.id !== claim.id &&
+              (c.status === 'pending' || c.status === 'under_review' || c.status === 'approved'),
+          )
+          if (!otherOpenClaims) {
+            setItems((prev) =>
+              prev.map((i) =>
+                i.id === claim.itemId && (i.status === 'claim_pending' || i.status === 'claim_under_review')
+                  ? {
+                      ...i,
+                      status: 'unclaimed',
+                      timeline: i.timeline.map((t, idx) =>
+                        idx === 2
+                          ? { ...t, label: 'Awaiting claim', description: 'No open claims', done: false }
+                          : t,
+                      ),
+                    }
+                  : i,
+              ),
+            )
+          }
+        }
       }
       toast(
         status === 'approved' ? 'Claim approved' : status === 'rejected' ? 'Claim declined' : 'Claim moved to review',
@@ -298,8 +323,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const markAllNotificationsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-  }, [])
+    const uidNow = user?.id
+    if (!uidNow) return
+    setNotifications((prev) => prev.map((n) => (n.userId === uidNow ? { ...n, read: true } : n)))
+  }, [user])
 
   const itemsByOwner = useCallback((ownerId: string) => items.filter((i) => i.ownerId === ownerId), [items])
   const claimsByUser = useCallback((userId: string) => claims.filter((c) => c.claimantId === userId), [claims])
