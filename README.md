@@ -29,6 +29,14 @@ A modern, minimalist lost & found platform built with React. Report lost belongi
 
 Black primary buttons, white secondary buttons with thin black borders, square/subtle corners, generous whitespace, Swiss-editorial typography.
 
+## Architecture
+
+Production AWS target architecture (serverless): Route 53 → CloudFront + WAF → S3 (SPA), Cognito auth, API Gateway → Lambda, DynamoDB (append-only audit), private S3 media, EventBridge match ranking (advisory only — humans approve), SNS/SES notifications.
+
+![AWS Architecture](docs/aws-architecture.png)
+
+Full service selection and data-flow write-up: [docs/architecture.md](docs/architecture.md). Regenerate the PNG with `npm run render:arch`.
+
 ## Tech stack
 
 - React 18 + TypeScript + Vite

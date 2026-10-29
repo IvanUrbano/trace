@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" font-family="Inter, Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#111111"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#9A9A9A"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="1100" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="64" y="58" font-size="28" font-weight="700" fill="#111111" letter-spacing="-0.5">TRACE — AWS Cloud Architecture</text>
+  <text x="64" y="86" font-size="14" fill="#6B6B6B">Lost &amp; found platform · Serverless · Human-verified returns · Append-only audit trail</text>
+  <line x1="64" y1="104" x2="1536" y2="104" stroke="#E5E5E5" stroke-width="1"/>
+
+  <!-- ===== ROW 1: Clients ===== -->
+  <rect x="620" y="128" width="360" height="64" rx="4" fill="#111111"/>
+  <text x="800" y="156" text-anchor="middle" font-size="15" font-weight="600" fill="#FFFFFF">End Users</text>
+  <text x="800" y="176" text-anchor="middle" font-size="12" fill="#B0B0B0">Web browsers · Mobile devices</text>
+
+  <!-- ===== ROW 2: Edge ===== -->
+  <!-- Route 53 -->
+  <rect x="160" y="260" width="220" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="176" y="276" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="192" y="297" text-anchor="middle" font-size="10" font-weight="700" fill="#111111">R53</text>
+  <text x="224" y="288" font-size="14" font-weight="600" fill="#111111">Route 53</text>
+  <text x="224" y="306" font-size="11" fill="#6B6B6B">DNS · TLS (ACM)</text>
+
+  <!-- CloudFront + WAF -->
+  <rect x="440" y="260" width="300" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="456" y="276" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="472" y="297" text-anchor="middle" font-size="10" font-weight="700" fill="#111111">CF</text>
+  <text x="504" y="288" font-size="14" font-weight="600" fill="#111111">CloudFront + WAF</text>
+  <text x="504" y="306" font-size="11" fill="#6B6B6B">CDN · edge TLS · rate limits</text>
+
+  <!-- S3 SPA -->
+  <rect x="800" y="260" width="260" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="816" y="276" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="832" y="297" text-anchor="middle" font-size="10" font-weight="700" fill="#111111">S3</text>
+  <text x="864" y="288" font-size="14" font-weight="600" fill="#111111">S3 — React SPA</text>
+  <text x="864" y="306" font-size="11" fill="#6B6B6B">Static build · versioned</text>
+
+  <!-- Cognito -->
+  <rect x="1180" y="260" width="300" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="1196" y="276" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="1212" y="297" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">COG</text>
+  <text x="1248" y="288" font-size="14" font-weight="600" fill="#111111">Amazon Cognito</text>
+  <text x="1248" y="306" font-size="11" fill="#6B6B6B">User pool · admin group · JWT</text>
+
+  <!-- ===== ROW 3: API ===== -->
+  <rect x="560" y="420" width="360" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="576" y="436" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="592" y="457" text-anchor="middle" font-size="10" font-weight="700" fill="#111111">API</text>
+  <text x="624" y="448" font-size="14" font-weight="600" fill="#111111">API Gateway (HTTP API)</text>
+  <text x="624" y="466" font-size="11" fill="#6B6B6B">JWT authorizer · throttling · CORS</text>
+
+  <!-- ===== ROW 4: Lambdas ===== -->
+  <rect x="120" y="560" width="220" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="136" y="576" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="152" y="597" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">λ</text>
+  <text x="184" y="588" font-size="13" font-weight="600" fill="#111111">Items Fn</text>
+  <text x="184" y="606" font-size="11" fill="#6B6B6B">Report · search · GET</text>
+
+  <rect x="380" y="560" width="220" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="396" y="576" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="412" y="597" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">λ</text>
+  <text x="444" y="588" font-size="13" font-weight="600" fill="#111111">Claims Fn</text>
+  <text x="444" y="606" font-size="11" fill="#6B6B6B">Private Q&amp;A · status</text>
+
+  <rect x="640" y="560" width="220" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="656" y="576" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="672" y="597" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">λ</text>
+  <text x="704" y="588" font-size="13" font-weight="600" fill="#111111">Handoff Fn</text>
+  <text x="704" y="606" font-size="11" fill="#6B6B6B">Admin-only · mark returned</text>
+
+  <rect x="900" y="560" width="220" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="916" y="576" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="932" y="597" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">λ</text>
+  <text x="964" y="588" font-size="13" font-weight="600" fill="#111111">Public GET Fn</text>
+  <text x="964" y="606" font-size="11" fill="#6B6B6B">No private fields</text>
+
+  <!-- EventBridge -->
+  <rect x="1200" y="560" width="260" height="64" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="1216" y="576" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="1232" y="597" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">EB</text>
+  <text x="1268" y="588" font-size="13" font-weight="600" fill="#111111">EventBridge</text>
+  <text x="1268" y="606" font-size="11" fill="#6B6B6B">ItemReported · ClaimSubmitted</text>
+
+  <!-- ===== ROW 5: Data ===== -->
+  <!-- DynamoDB -->
+  <rect x="200" y="720" width="280" height="88" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="216" y="740" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="232" y="761" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">DDB</text>
+  <text x="264" y="752" font-size="14" font-weight="600" fill="#111111">DynamoDB</text>
+  <text x="264" y="772" font-size="11" fill="#6B6B6B">Items · Claims tables</text>
+  <text x="216" y="796" font-size="11" font-weight="600" fill="#111111">Audit table — append-only (IAM: no update/delete)</text>
+
+  <!-- S3 Media -->
+  <rect x="540" y="720" width="260" height="88" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="556" y="740" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="572" y="761" text-anchor="middle" font-size="10" font-weight="700" fill="#111111">S3</text>
+  <text x="604" y="752" font-size="14" font-weight="600" fill="#111111">S3 — Media (private)</text>
+  <text x="604" y="772" font-size="11" fill="#6B6B6B">Item photos · SSE · no public ACL</text>
+  <text x="556" y="796" font-size="11" fill="#6B6B6B">Uploads via presigned URLs only</text>
+
+  <!-- Match Lambda -->
+  <rect x="880" y="720" width="300" height="88" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <rect x="896" y="740" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="912" y="761" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">λ</text>
+  <text x="944" y="752" font-size="14" font-weight="600" fill="#111111">Match Ranking Lambda</text>
+  <text x="944" y="772" font-size="11" fill="#6B6B6B">Rank candidates (description · category · date · location)</text>
+  <text x="896" y="796" font-size="11" font-weight="600" fill="#111111">Output = illustrative scores only — never auto-approves</text>
+
+  <!-- SNS/SES -->
+  <rect x="1240" y="720" width="240" height="88" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <rect x="1256" y="740" width="32" height="32" rx="4" fill="#F5F5F5" stroke="#111111" stroke-width="1"/>
+  <text x="1272" y="761" text-anchor="middle" font-size="9" font-weight="700" fill="#111111">SNS</text>
+  <text x="1304" y="752" font-size="14" font-weight="600" fill="#111111">SNS → SES</text>
+  <text x="1304" y="772" font-size="11" fill="#6B6B6B">Claim status · handoff emails</text>
+  <text x="1256" y="796" font-size="11" fill="#6B6B6B">In-app notifications in DynamoDB</text>
+
+  <!-- ===== Ops ===== -->
+  <rect x="1180" y="900" width="300" height="72" rx="4" fill="#F5F5F5" stroke="#9A9A9A" stroke-width="1.5"/>
+  <text x="1330" y="930" text-anchor="middle" font-size="14" font-weight="600" fill="#111111">CloudWatch + X-Ray</text>
+  <text x="1330" y="950" text-anchor="middle" font-size="11" fill="#6B6B6B">Logs · metrics · traces · alarms</text>
+
+  <!-- Secrets / config -->
+  <rect x="880" y="900" width="260" height="72" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="1.5"/>
+  <text x="1010" y="930" text-anchor="middle" font-size="14" font-weight="600" fill="#111111">SSM Parameter Store</text>
+  <text x="1010" y="950" text-anchor="middle" font-size="11" fill="#6B6B6B">Feature flags · config</text>
+
+  <!-- ===== FLOWS (arrows) ===== -->
+  <!-- 1 Users -> Route53/CF -->
+  <path d="M700 192 L700 220 L270 220 L270 260" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M800 192 L800 240 L590 240 L590 260" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="745" cy="220" r="12" fill="#111111"/>
+  <text x="745" y="224" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">1</text>
+
+  <!-- CloudFront -> S3 SPA -->
+  <path d="M740 292 L800 292" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="770" y="284" text-anchor="middle" font-size="10" fill="#6B6B6B">assets</text>
+
+  <!-- 2 Users -> Cognito -->
+  <path d="M980 160 L1330 160 L1330 260" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="1160" cy="160" r="12" fill="#111111"/>
+  <text x="1160" y="164" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">2</text>
+  <text x="1344" y="200" font-size="10" fill="#6B6B6B">sign-in · JWT</text>
+
+  <!-- 3 CloudFront/SPA -> API GW -->
+  <path d="M590 324 L590 420" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="590" cy="372" r="12" fill="#111111"/>
+  <text x="590" y="376" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">3</text>
+  <text x="606" y="360" font-size="10" fill="#6B6B6B">HTTPS + JWT</text>
+
+  <!-- Cognito -> API GW (authz note) -->
+  <path d="M1180 300 L1080 300 L1080 452 L920 452" fill="none" stroke="#9A9A9A" stroke-width="1.25" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+  <text x="1092" y="340" font-size="10" fill="#9A9A9A">authorizer</text>
+
+  <!-- API GW -> Lambdas fanout -->
+  <path d="M640 484 L640 520 L230 520 L230 560" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M640 520 L490 520 L490 560" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M700 484 L700 560" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M780 484 L780 520 L1010 520 L1010 560" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="700" cy="504" r="12" fill="#111111"/>
+  <text x="700" y="508" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">4</text>
+
+  <!-- Items/Claims/Handoff -> DynamoDB -->
+  <path d="M230 624 L230 720" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M470 624 L470 720" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M750 624 L750 702 L450 702 L450 720" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="230" cy="672" r="12" fill="#111111"/>
+  <text x="230" y="676" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">5</text>
+
+  <!-- Items Fn -> S3 media presign -->
+  <path d="M300 624 L300 676 L620 676 L620 720" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="460" y="668" text-anchor="middle" font-size="10" fill="#6B6B6B">presign upload</text>
+
+  <!-- 6 EventBridge -> Match Lambda -->
+  <path d="M1330 624 L1330 656 L1180 656 L1180 720" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="1330" cy="640" r="12" fill="#111111"/>
+  <text x="1330" y="644" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">6</text>
+
+  <!-- Match Lambda -> DynamoDB (below data row) -->
+  <path d="M1030 808 L1030 860 L170 860 L170 764 L200 764" fill="none" stroke="#111111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="600" y="852" text-anchor="middle" font-size="10" fill="#6B6B6B">write illustrative scores</text>
+
+  <!-- 7 Claims/Handoff -> SNS/SES -->
+  <path d="M860 644 L1500 644 L1500 692 L1360 692 L1360 720" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="1420" cy="644" r="12" fill="#111111"/>
+  <text x="1420" y="648" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">7</text>
+
+  <!-- 8 Ops dashed -->
+  <path d="M560 452 L80 452 L80 936 L880 936" fill="none" stroke="#9A9A9A" stroke-width="1.25" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+  <path d="M1140 936 L1180 936" fill="none" stroke="#9A9A9A" stroke-width="1.25" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+  <circle cx="80" cy="700" r="12" fill="#9A9A9A"/>
+  <text x="80" y="704" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">8</text>
+
+  <!-- SSM config note -->
+  <text x="1010" y="990" text-anchor="middle" font-size="10" fill="#9A9A9A">config → all Lambdas</text>
+
+  <!-- ===== Legend ===== -->
+  <line x1="64" y1="1000" x2="1536" y2="1000" stroke="#E5E5E5" stroke-width="1"/>
+  <text x="64" y="1030" font-size="12" font-weight="600" fill="#111111">Legend</text>
+  <line x1="140" y1="1026" x2="190" y2="1026" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="200" y="1030" font-size="12" fill="#6B6B6B">Request / data path</text>
+  <line x1="360" y1="1026" x2="410" y2="1026" stroke="#9A9A9A" stroke-width="1.25" stroke-dasharray="5 4" marker-end="url(#arrowGray)"/>
+  <text x="420" y="1030" font-size="12" fill="#6B6B6B">Async · auth · ops</text>
+  <rect x="590" y="1018" width="28" height="16" rx="2" fill="#FFFFFF" stroke="#111111" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="630" y="1030" font-size="12" fill="#6B6B6B">Advisory AI (no auto-approval)</text>
+
+  <text x="64" y="1064" font-size="11" fill="#9A9A9A">Flows: 1 DNS/CDN · 2 Auth · 3 API+JWT · 4 Dispatch · 5 Persist · 6 Async match ranking · 7 Notifications · 8 Observability</text>
+  <text x="64" y="1084" font-size="11" font-weight="600" fill="#111111">Security: private media bucket · Cognito admin-only handoffs · audit table append-only · public GET strips private identifying details</text>
+</svg>
