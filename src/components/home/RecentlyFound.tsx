@@ -7,7 +7,8 @@ import { Button } from '../ui/Button'
 
 export function RecentlyFound() {
   const { items } = useStore()
-  const found = items.filter((i) => i.type === 'found').slice(0, 6)
+  const found = items.filter((i) => i.type === 'found' && i.status !== 'returned')
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 6)
 
   return (
     <section className="bg-mist py-24 lg:py-32" aria-labelledby="recently-found-heading">
@@ -37,7 +38,7 @@ export function RecentlyFound() {
         <RevealOnScroll delay={0.1}>
           <p className="mt-12 text-center text-sm text-muted">
             Looking for something specific?{' '}
-            <Link to="/discover" className="font-medium text-ink underline underline-offset-4">
+            <Link to="/discover" className="font-medium text-accent underline underline-offset-4">
               Search all listings
             </Link>
           </p>

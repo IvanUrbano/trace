@@ -1,18 +1,19 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { Footer } from './components/Footer'
 import { Navbar } from './components/Navbar'
 import { NotificationToast } from './components/NotificationToast'
-import { AdminPage } from './pages/AdminPage'
-import { ClaimPage } from './pages/ClaimPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { DiscoverPage } from './pages/DiscoverPage'
-import { HomePage } from './pages/HomePage'
-import { ItemDetailsPage } from './pages/ItemDetailsPage'
-import { TermsPage, PrivacyPage } from './pages/LegalPages'
-import { ReportPage } from './pages/ReportPage'
-import { SignInPage } from './pages/SignInPage'
+const AdminPage = lazy(() => import('./pages/AdminPage').then((module) => ({ default: module.AdminPage })))
+const ClaimPage = lazy(() => import('./pages/ClaimPage').then((module) => ({ default: module.ClaimPage })))
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
+const DiscoverPage = lazy(() => import('./pages/DiscoverPage').then((module) => ({ default: module.DiscoverPage })))
+const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
+const ItemDetailsPage = lazy(() => import('./pages/ItemDetailsPage').then((module) => ({ default: module.ItemDetailsPage })))
+const ReportPage = lazy(() => import('./pages/ReportPage').then((module) => ({ default: module.ReportPage })))
+const SignInPage = lazy(() => import('./pages/SignInPage').then((module) => ({ default: module.SignInPage })))
+const PrivacyPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.PrivacyPage })))
+const TermsPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.TermsPage })))
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation()
@@ -52,7 +53,8 @@ export default function App() {
       <Navbar />
       <div className="flex-1">
         <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
+          <Suspense fallback={<div className="container-x pt-28 text-sm text-muted" role="status">Loading page…</div>}>
+            <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageTransition><HomePage /></PageTransition>} />
             <Route path="/discover" element={<PageTransition><DiscoverPage /></PageTransition>} />
             <Route path="/items/:id" element={<PageTransition><ItemDetailsPage /></PageTransition>} />
@@ -77,7 +79,8 @@ export default function App() {
                 </PageTransition>
               }
             />
-          </Routes>
+            </Routes>
+          </Suspense>
         </AnimatePresence>
       </div>
       <Footer />

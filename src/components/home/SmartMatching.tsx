@@ -42,9 +42,9 @@ const indicators = [
 
 export function SmartMatching() {
   return (
-    <section className="bg-mist py-24 lg:py-32" aria-labelledby="matching-heading">
+    <section id="smart-matching" className="scroll-mt-24 bg-accentLight/20 py-24 lg:py-32" aria-labelledby="matching-heading">
       <div className="container-x grid items-center gap-16 lg:grid-cols-2 lg:gap-20">
-        <div>
+        <div className="min-w-0">
           <RevealOnScroll>
             <p className="eyebrow">Smart Matching</p>
             <h2 id="matching-heading" className="h2-section mt-4">
@@ -63,16 +63,16 @@ export function SmartMatching() {
               {indicators.map((ind) => (
                 <li key={ind.label} className="flex items-center gap-4">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[3px] border border-line bg-paper">
-                    <ind.icon className="h-4 w-4" strokeWidth={1.5} />
+                    <ind.icon className="h-4 w-4 text-accent" strokeWidth={1.5} />
                   </span>
-                  <div className="flex-1">
-                    <div className="flex items-baseline justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                       <p className="text-sm font-medium">{ind.label}</p>
                       <p className="font-mono text-xs text-muted">{ind.value}% illustrative</p>
                     </div>
                     <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-line">
                       <motion.div
-                        className="h-full rounded-full bg-ink"
+                        className="h-full rounded-full bg-accent"
                         initial={{ width: 0 }}
                         whileInView={{ width: `${ind.value}%` }}
                         viewport={{ once: true, margin: '-40px' }}
@@ -87,7 +87,7 @@ export function SmartMatching() {
 
           <RevealOnScroll delay={0.25}>
             <p className="mt-10 border-t border-line pt-6 text-sm font-medium">
-              AI helps identify possibilities. People verify ownership.
+              Ranking helps identify possibilities. People verify ownership.
             </p>
             <p className="mt-2 text-xs leading-relaxed text-muted">
               Similarity scores shown here are illustrative suggestions for ranking candidates —
@@ -97,7 +97,7 @@ export function SmartMatching() {
           </RevealOnScroll>
         </div>
 
-        <RevealOnScroll delay={0.1}>
+        <RevealOnScroll delay={0.1} className="min-w-0">
           <div className="rounded-[4px] border border-line bg-paper p-6 shadow-[0_16px_50px_rgba(0,0,0,0.05)] sm:p-8">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">
               Your lost report
@@ -143,7 +143,7 @@ export function SmartMatching() {
                   </div>
                   <div className="shrink-0 text-right">
                     <motion.p
-                      className="font-mono text-lg font-semibold"
+                      className="font-mono text-lg font-semibold text-accent"
                       initial={{ opacity: 0 }}
                       whileInView={{ opacity: 1 }}
                       viewport={{ once: true }}

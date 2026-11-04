@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ClaimStatusBadge, StatusBadge } from '../components/ui/StatusBadge'
 import { Button } from '../components/ui/Button'
 import { useStore } from '../lib/store'
+import { rankFoundMatches } from '../lib/matching'
 import { formatDate, relativeTime } from '../lib/utils'
 import { cn } from '../lib/utils'
 
@@ -45,14 +46,9 @@ export function DashboardPage() {
   const notes = notificationsFor(user.id)
   const unread = notes.filter((n) => !n.read).length
 
-  const matches = items
-    .filter((i) => i.type === 'found' && i.status === 'unclaimed')
-    .slice(0, 3)
-    .map((item, idx) => ({
-      item,
-      score: [87, 62, 41][idx] ?? 35,
-      label: idx === 0 ? 'Strong candidate' : idx === 1 ? 'Possible candidate' : 'Weak candidate',
-    }))
+  const matchGroups = myLost
+    .filter((item) => item.status !== 'returned')
+    .map((lost) => ({ lost, matches: rankFoundMatches(lost, items) }))
 
   return (
     <main className="container-x pb-24 pt-28 lg:pt-32">
@@ -146,29 +142,43 @@ export function DashboardPage() {
           {active === 'matches' && (
             <div>
               <p className="mb-4 text-sm text-muted">
-                Illustrative similarity suggestions ranked by description, category, date, and
-                location — not verified ownership.
+                Scores rank suggestions from public descriptions, category, date, and location.
+                They are not ownership probabilities. A person verifies every claim.
               </p>
-              <div className="space-y-4">
-                {matches.map(({ item, score, label }) => (
-                  <Link
-                    key={item.id}
-                    to={`/items/${item.id}`}
-                    className="flex items-center gap-4 rounded-[4px] border border-line bg-paper p-4 transition-all hover:-translate-y-0.5 hover:border-ink"
-                  >
-                    <img src={item.images[0]} alt="" className="h-16 w-16 rounded-[3px] object-cover" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold">{item.title}</p>
-                      <p className="mt-0.5 text-sm text-muted">
-                        {item.location} · {formatDate(item.date)}
+              {matchGroups.length === 0 && <EmptyState label="Report a lost item to see possible matches." action="/report?type=lost" />}
+              <div className="space-y-8">
+                {matchGroups.map(({ lost, matches }) => (
+                  <section key={lost.id} aria-label={`Matches for ${lost.title}`}>
+                    <h2 className="mb-3 text-sm font-semibold">
+                      Possible matches for <Link to={`/items/${lost.id}`} className="underline underline-offset-4">{lost.title}</Link>
+                    </h2>
+                    {matches.length === 0 ? (
+                      <p className="rounded-[4px] border border-dashed border-line bg-mist/40 px-5 py-7 text-sm text-muted">
+                        No found reports in this category yet.
                       </p>
-                      <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-muted">{label}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono text-lg font-semibold">{score}%</p>
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-muted">illustrative</p>
-                    </div>
-                  </Link>
+                    ) : (
+                      <div className="space-y-3">
+                        {matches.map(({ item, score, reasons }) => (
+                          <Link
+                            key={item.id}
+                            to={`/items/${item.id}`}
+                            className="flex items-center gap-4 rounded-[4px] border border-line bg-paper p-4 transition-all hover:-translate-y-0.5 hover:border-ink"
+                          >
+                            <img src={item.images[0]} alt="" className="h-16 w-16 rounded-[3px] object-cover" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-semibold">{item.title}</p>
+                              <p className="mt-0.5 text-sm text-muted">{item.location} · {formatDate(item.date)}</p>
+                              <p className="mt-1 text-xs text-muted">{reasons.join(' · ')}</p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="font-mono text-lg font-semibold">{score}</p>
+                              <p className="text-[10px] uppercase tracking-[0.1em] text-muted">Match score</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </section>
                 ))}
               </div>
             </div>

@@ -10,9 +10,9 @@ import { Button } from './ui/Button'
 import { Modal } from './ui/Modal'
 
 const questions = [
-  'What color is the carrying case or pouch?',
-  'Is there any unique mark, scratch, or sticker on the item?',
-  'What brand or model is it?',
+  'What identifying detail is not shown in the listing?',
+  'Where and when did you last have the item?',
+  'What else can help confirm that it is yours?',
 ]
 
 export function ClaimForm({ item }: { item: Item }) {
@@ -31,7 +31,7 @@ export function ClaimForm({ item }: { item: Item }) {
   })
 
   const onSubmit = async (data: ClaimInput) => {
-    submitClaim({
+    const submitted = submitClaim({
       itemId: item.id,
       itemTitle: item.title,
       statement: data.statement,
@@ -42,6 +42,7 @@ export function ClaimForm({ item }: { item: Item }) {
         { id: 'q3', question: questions[2], answer: data.q3 },
       ],
     })
+    if (!submitted) return
     setOpen(false)
     toast('Track your claim in the dashboard')
     navigate('/dashboard?tab=claims')
@@ -57,8 +58,8 @@ export function ClaimForm({ item }: { item: Item }) {
       </Button>
       <Modal open={open} onClose={() => setOpen(false)} title={`Claim “${item.title}”`}>
         <p className="mb-6 text-sm leading-relaxed text-muted">
-          Answer the private ownership questions below. These answers stay private and are only
-          seen by authorized reviewers — never in public listings.
+          Answer the ownership questions below. Answers are not shown on listings. This demo saves
+          them in your browser, so avoid sensitive information.
         </p>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
           <div>
@@ -112,8 +113,7 @@ export function ClaimForm({ item }: { item: Item }) {
             )
           })}
           <p className="text-xs leading-relaxed text-muted">
-            Answers are stored privately for human review. An authorized person decides the
-            outcome — nothing is approved automatically.
+            A person reviews the answers and decides the outcome. Nothing is approved automatically.
           </p>
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

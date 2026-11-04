@@ -4,11 +4,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#111111',
-        paper: '#FFFFFF',
-        mist: '#F5F5F5',
-        line: '#E5E5E5',
-        muted: '#6B6B6B',
+        accent: '#40506A',
+        accentMid: '#171926',
+        accentLight: '#8F9DC0',
+        ink: '#171926',
+        paper: '#E7EAF3',
+        mist: '#E7EAF3',
+        line: '#8F9DC0',
+        muted: '#40506A',
       },
       fontFamily: {
         sans: ['Inter', 'Geist', 'system-ui', '-apple-system', 'sans-serif'],

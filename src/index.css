@@ -11,7 +11,7 @@
     font-feature-settings: 'ss01' on, 'cv11' on;
   }
   ::selection {
-    @apply bg-ink text-paper;
+    @apply bg-accent text-paper;
   }
   *:focus-visible {
     @apply outline outline-2 outline-offset-2 outline-ink;
@@ -29,7 +29,7 @@
     @apply text-3xl sm:text-4xl lg:text-5xl leading-[1.08] tracking-tightest font-semibold;
   }
   .eyebrow {
-    @apply text-xs font-medium uppercase tracking-[0.22em] text-muted;
+    @apply text-xs font-medium uppercase tracking-[0.22em] text-accent;
   }
 }
 

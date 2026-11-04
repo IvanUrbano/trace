@@ -58,7 +58,7 @@ export function SearchFilters({
                 onClick={() => onChange({ type: t })}
                 className={cn(
                   'h-10 px-3 text-sm font-medium capitalize transition-colors',
-                  filters.type === t ? 'bg-ink text-paper' : 'bg-paper text-muted hover:text-ink',
+                  filters.type === t ? 'bg-accent text-paper' : 'bg-paper text-muted hover:text-ink',
                 )}
               >
                 {t}

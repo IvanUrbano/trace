@@ -59,11 +59,11 @@ export function Footer() {
                   >
                     <Link
                       to={l.to}
-                      className="group inline-flex text-sm text-ink/80 transition-colors hover:text-ink"
+                      className="group inline-flex text-sm text-ink/80 transition-colors hover:text-accent"
                     >
                       <span className="relative">
                         {l.label}
-                        <span className="absolute -bottom-0.5 left-0 h-px w-0 bg-ink transition-all duration-300 group-hover:w-full" />
+                        <span className="absolute -bottom-0.5 left-0 h-px w-0 bg-accent transition-all duration-300 group-hover:w-full" />
                       </span>
                     </Link>
                   </motion.li>

@@ -11,7 +11,7 @@ const steps = [
   {
     icon: Search,
     title: 'Discover',
-    description: 'Search listings or review AI-suggested possible matches.',
+    description: 'Search listings or review ranked possible matches.',
   },
   {
     icon: ShieldCheck,
@@ -28,7 +28,7 @@ const steps = [
 export function HowItWorks() {
   const reduce = useReducedMotion()
   return (
-    <section id="how-it-works" className="py-24 lg:py-32" aria-labelledby="how-heading">
+    <section id="how-it-works" className="scroll-mt-24 py-24 lg:py-32" aria-labelledby="how-heading">
       <div className="container-x">
         <RevealOnScroll>
           <p className="eyebrow">How It Works</p>
@@ -58,9 +58,9 @@ export function HowItWorks() {
                 transition={{ duration: 0.65, delay: i * 0.12, ease: [0.21, 0.6, 0.35, 1] }}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper">
-                  <step.icon className="h-5 w-5" strokeWidth={1.5} />
+                  <step.icon className="h-5 w-5 text-accent" strokeWidth={1.5} />
                 </div>
-                <p className="mt-6 text-xs font-medium uppercase tracking-[0.18em] text-muted">
+                <p className="mt-6 text-xs font-medium uppercase tracking-[0.18em] text-accent">
                   Step {String(i + 1).padStart(2, '0')}
                 </p>
                 <h3 className="mt-2 text-xl font-semibold tracking-tight">{step.title}</h3>

@@ -1,54 +1,52 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ItemGrid } from '../components/ItemGrid'
-import { SearchFilters, defaultFilters, type Filters } from '../components/SearchFilters'
-import { ItemGridSkeleton } from '../components/Skeleton'
+import { SearchFilters, type Filters } from '../components/SearchFilters'
 import { useStore } from '../lib/store'
-import { Button } from '../components/ui/Button'
+import { CATEGORIES, LOCATIONS } from '../lib/types'
 
-type LoadState = 'loading' | 'ready' | 'error'
+function validDate(value: string | null): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(value)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+}
 
 export function DiscoverPage() {
   const { items } = useStore()
   const [params, setParams] = useSearchParams()
-  const [filters, setFilters] = useState<Filters>(() => ({
-    ...defaultFilters,
+  const type = params.get('type')
+  const category = params.get('category')
+  const location = params.get('location')
+  const from = params.get('from')
+  const filters: Filters = {
     q: params.get('q') ?? '',
-    type: (params.get('type') as Filters['type']) ?? 'all',
-    category: params.get('category') ?? '',
-    location: params.get('location') ?? '',
-    from: params.get('from') ?? '',
-    sort: (params.get('sort') as Filters['sort']) ?? 'newest',
-  }))
-  const [state, setState] = useState<LoadState>('loading')
+    type: type === 'lost' || type === 'found' ? type : 'all',
+    category: CATEGORIES.find((value) => value === category) ?? '',
+    location: LOCATIONS.find((value) => value === location) ?? '',
+    from: validDate(from) ? from : '',
+    sort: params.get('sort') === 'relevance' ? 'relevance' : 'newest',
+  }
 
-  useEffect(() => {
-    setState('loading')
-    const t = window.setTimeout(() => setState('ready'), 450)
-    return () => window.clearTimeout(t)
-  }, [filters])
-
-  useEffect(() => {
+  const update = (partial: Partial<Filters>) => {
+    const nextFilters = { ...filters, ...partial }
     const next = new URLSearchParams()
-    if (filters.q) next.set('q', filters.q)
-    if (filters.type !== 'all') next.set('type', filters.type)
-    if (filters.category) next.set('category', filters.category)
-    if (filters.location) next.set('location', filters.location)
-    if (filters.from) next.set('from', filters.from)
-    if (filters.sort !== 'newest') next.set('sort', filters.sort)
+    if (nextFilters.q) next.set('q', nextFilters.q)
+    if (nextFilters.type !== 'all') next.set('type', nextFilters.type)
+    if (nextFilters.category) next.set('category', nextFilters.category)
+    if (nextFilters.location) next.set('location', nextFilters.location)
+    if (nextFilters.from) next.set('from', nextFilters.from)
+    if (nextFilters.sort !== 'newest') next.set('sort', nextFilters.sort)
     setParams(next, { replace: true })
-  }, [filters, setParams])
-
-  const update = (partial: Partial<Filters>) => setFilters((f) => ({ ...f, ...partial }))
+  }
 
   const results = (() => {
     let list = items.filter((i) => i.status !== 'returned' || filters.type === 'all')
     if (filters.type !== 'all') list = list.filter((i) => i.type === filters.type)
     if (filters.category) list = list.filter((i) => i.category === filters.category)
     if (filters.location) list = list.filter((i) => i.location === filters.location)
-    if (filters.from) list = list.filter((i) => i.date >= new Date(filters.from).toISOString())
+    if (filters.from) {
+      const firstDate = Date.parse(filters.from)
+      list = list.filter((i) => Date.parse(i.date) >= firstDate)
+    }
     if (filters.q.trim()) {
       const q = filters.q.toLowerCase()
       list = list.filter(
@@ -82,41 +80,10 @@ export function DiscoverPage() {
         </p>
       </header>
 
-      <SearchFilters filters={filters} onChange={update} resultCount={state === 'ready' ? results.length : 0} />
+      <SearchFilters filters={filters} onChange={update} resultCount={results.length} />
 
       <div className="mt-10">
-        <AnimatePresence mode="wait">
-          {state === 'loading' && (
-            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <ItemGridSkeleton />
-            </motion.div>
-          )}
-          {state === 'error' && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center rounded-[3px] border border-line bg-mist/50 px-6 py-20 text-center"
-            >
-              <AlertTriangle className="h-6 w-6 text-muted" strokeWidth={1.5} />
-              <p className="mt-3 font-medium">Something went wrong loading listings.</p>
-              <p className="mt-1 text-sm text-muted">Your filters are preserved — try again.</p>
-              <Button variant="secondary" className="mt-6" onClick={() => setState('loading')}>
-                <RefreshCw className="h-4 w-4" />
-                Retry
-              </Button>
-            </motion.div>
-          )}
-          {state === 'ready' && (
-            <motion.div key="ready" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <ItemGrid
-                items={results}
-                emptyMessage="Nothing matches those filters yet."
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <ItemGrid items={results} emptyMessage="Nothing matches those filters yet." />
       </div>
     </main>
   )

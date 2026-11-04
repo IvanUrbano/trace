@@ -33,7 +33,7 @@ export function Marquee() {
             aria-hidden={i >= words.length}
           >
             {w}
-            <span className="h-1 w-1 rounded-full bg-line" aria-hidden />
+            <span className="h-1 w-1 rounded-full bg-accent/70" aria-hidden />
           </span>
         ))}
       </div>

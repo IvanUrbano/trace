@@ -27,7 +27,7 @@ export function TrustVerification() {
     <section className="bg-ink py-24 text-paper lg:py-32" aria-labelledby="trust-heading">
       <div className="container-x">
         <RevealOnScroll>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-paper/50">
+          <p className="text-xs font-medium uppercase tracking-[0.22em] text-accentLight">
             Trust &amp; Verification
           </p>
           <h2 id="trust-heading" className="h2-section mt-4 max-w-2xl">
@@ -42,7 +42,7 @@ export function TrustVerification() {
         <StaggerContainer className="mt-12 grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-12" staggerDelay={0.12}>
           {features.map((f) => (
             <StaggerItem key={f.title}>
-              <f.icon className="h-6 w-6" strokeWidth={1.4} aria-hidden />
+              <f.icon className="h-6 w-6 text-accentLight" strokeWidth={1.4} aria-hidden />
               <h3 className="mt-5 text-lg font-semibold tracking-tight">{f.title}</h3>
               <p className="mt-3 text-sm leading-relaxed text-paper/60">{f.description}</p>
             </StaggerItem>

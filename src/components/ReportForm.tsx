@@ -10,6 +10,28 @@ import { cn } from '../lib/utils'
 import { Button } from './ui/Button'
 
 const steps = ['Basics', 'Details', 'Review'] as const
+const MAX_SOURCE_BYTES = 5_000_000
+const MAX_STORED_LENGTH = 700_000
+
+async function preparePhoto(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file)
+  try {
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Image processing is unavailable in this browser')
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    const result = canvas.toDataURL('image/jpeg', 0.72)
+    if (result.length > MAX_STORED_LENGTH) throw new Error('Photo is too large after compression')
+    return result
+  } finally {
+    bitmap.close()
+  }
+}
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
@@ -21,6 +43,7 @@ export function ReportForm() {
   const initialType = params.get('type') === 'found' ? 'found' : 'lost'
   const [step, setStep] = useState(0)
   const [previews, setPreviews] = useState<string[]>([])
+  const [photoError, setPhotoError] = useState('')
   const { addItem } = useStore()
   const navigate = useNavigate()
 
@@ -38,24 +61,24 @@ export function ReportForm() {
 
   const type = watch('type')
 
-  const handleFiles = (files: FileList | null) => {
-    if (!files) return
+  const handleFiles = async (files: FileList | null) => {
+    if (!files?.length) return
+    setPhotoError('')
     const selected = Array.from(files)
-      .filter((f) => f.type.startsWith('image/'))
-      .slice(0, 4)
-    void Promise.all(
-      selected.map(
-        (f) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(String(reader.result))
-            reader.onerror = () => reject(new Error('Failed to read image'))
-            reader.readAsDataURL(f)
-          }),
-      ),
-    ).then((urls) => {
-      setPreviews((p) => [...p, ...urls].slice(0, 4))
-    })
+    if (selected.length > 4 - previews.length) {
+      setPhotoError('You can add up to four photos.')
+      return
+    }
+    if (selected.some((file) => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > MAX_SOURCE_BYTES)) {
+      setPhotoError('Use JPG, PNG, or WebP photos under 5 MB each.')
+      return
+    }
+    try {
+      const urls = await Promise.all(selected.map(preparePhoto))
+      setPreviews((current) => [...current, ...urls].slice(0, 4))
+    } catch {
+      setPhotoError('Could not process a photo. Try a smaller image.')
+    }
   }
 
   const removePreview = (idx: number) => setPreviews((p) => p.filter((_, i) => i !== idx))
@@ -84,7 +107,7 @@ export function ReportForm() {
       images,
       privateDetails: data.privateDetails || undefined,
     })
-    navigate(`/items/${id}`)
+    if (id) navigate(`/items/${id}`)
   }
 
   return (
@@ -233,15 +256,19 @@ export function ReportForm() {
             >
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 multiple
                 className="sr-only"
-                onChange={(e) => handleFiles(e.target.files)}
+                onChange={(e) => {
+                  void handleFiles(e.target.files)
+                  e.target.value = ''
+                }}
               />
               <ImagePlus className="h-5 w-5 text-muted" strokeWidth={1.5} />
               <p className="mt-2 text-sm font-medium">Drag photos here or click to browse</p>
-              <p className="mt-1 text-xs text-muted">JPG or PNG</p>
+              <p className="mt-1 text-xs text-muted">JPG, PNG, or WebP · up to 5 MB each</p>
             </label>
+            {photoError && <p className="mt-2 text-xs font-medium" role="alert">{photoError}</p>}
             {previews.length > 0 && (
               <ul className="mt-4 grid grid-cols-4 gap-3">
                 {previews.map((src, i) => (
@@ -264,7 +291,7 @@ export function ReportForm() {
           {type === 'lost' && (
             <div>
               <label htmlFor="privateDetails" className="text-sm font-medium">
-                Identifying details <span className="font-normal text-muted">(stored privately)</span>
+                Identifying details <span className="font-normal text-muted">(demo data)</span>
               </label>
               <textarea
                 id="privateDetails"
@@ -274,7 +301,7 @@ export function ReportForm() {
                 className="mt-2 w-full rounded-[3px] border border-line bg-paper px-4 py-3 text-sm transition-colors placeholder:text-muted/60 focus:border-ink"
               />
               <p className="mt-1.5 text-xs text-muted">
-                Used to craft ownership questions. Never displayed publicly.
+                Not shown on listings. This demo saves details in your browser; avoid sensitive information.
               </p>
             </div>
           )}
@@ -311,8 +338,8 @@ export function ReportForm() {
             </div>
           </dl>
           <p className="mt-5 text-xs leading-relaxed text-muted">
-            By submitting you confirm this report is accurate. Private identifying details are
-            stored securely and never shown in public listings.
+            By submitting you confirm this report is accurate. This demo saves report data in your
+            browser. Avoid sensitive information until secure cloud storage is connected.
           </p>
         </div>
       )}
@@ -327,7 +354,7 @@ export function ReportForm() {
           Back
         </Button>
         {step < steps.length - 1 ? (
-          <Button type="button" onClick={next} showArrow>
+          <Button type="button" onClick={(event) => { event.preventDefault(); void next() }} showArrow>
             Continue
           </Button>
         ) : (

@@ -40,7 +40,7 @@ export function ItemCard({ item, index = 0 }: { item: Item; index?: number }) {
           </span>
           <span>{formatDate(item.date)}</span>
         </div>
-        <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-ink">
+        <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent">
           View Details
           <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </span>

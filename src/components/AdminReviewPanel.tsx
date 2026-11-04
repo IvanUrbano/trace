@@ -10,16 +10,31 @@ export function AdminReviewPanel() {
   const { claims, items, updateClaimStatus, markReturned, user } = useStore()
   const [deciding, setDeciding] = useState<{ claim: Claim; action: 'approved' | 'rejected' } | null>(null)
   const [note, setNote] = useState('')
+  const [handoff, setHandoff] = useState<Claim | null>(null)
+  const [handoffNote, setHandoffNote] = useState('')
 
   const pending = claims.filter((c) => c.status === 'pending' || c.status === 'under_review')
   const decided = claims.filter((c) => c.status === 'approved' || c.status === 'rejected')
   const authorized = user?.role === 'admin'
 
-  const confirm = () => {
-    if (!deciding) return
-    updateClaimStatus(deciding.claim.id, deciding.action, note.trim() || undefined)
+  const closeDecision = () => {
     setDeciding(null)
     setNote('')
+  }
+  const closeHandoff = () => {
+    setHandoff(null)
+    setHandoffNote('')
+  }
+
+  const confirm = () => {
+    if (!deciding) return
+    if (!updateClaimStatus(deciding.claim.id, deciding.action, note.trim() || undefined)) return
+    closeDecision()
+  }
+
+  const confirmHandoff = () => {
+    if (!handoff || !markReturned(handoff.itemId, handoff.id, handoffNote)) return
+    closeHandoff()
   }
 
   return (
@@ -29,7 +44,7 @@ export function AdminReviewPanel() {
           Pending claims
         </h2>
         <p className="mt-1 text-sm text-muted">
-          AI never approves ownership. Review each claim and decide manually.
+          Matching never approves ownership. Review each claim and decide manually.
         </p>
         {pending.length === 0 ? (
           <p className="mt-6 rounded-[3px] border border-dashed border-line bg-mist/40 px-6 py-10 text-center text-sm text-muted">
@@ -101,7 +116,7 @@ export function AdminReviewPanel() {
         <ul className="mt-6 space-y-3">
           {decided.map((claim) => {
             const item = items.find((i) => i.id === claim.itemId)
-            const canConfirm = claim.status === 'approved' && item && item.status !== 'returned'
+            const canConfirm = claim.status === 'approved' && item?.status === 'claim_under_review'
             return (
               <li key={claim.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-line bg-paper px-5 py-4">
                 <div>
@@ -114,7 +129,7 @@ export function AdminReviewPanel() {
                 <div className="flex items-center gap-3">
                   <ClaimStatusBadge status={claim.status} />
                   {canConfirm && (
-                    <Button size="sm" variant="secondary" disabled={!authorized} onClick={() => markReturned(item.id)}>
+                    <Button size="sm" variant="secondary" disabled={!authorized} onClick={() => setHandoff(claim)}>
                       Confirm Handoff
                     </Button>
                   )}
@@ -135,7 +150,7 @@ export function AdminReviewPanel() {
 
       <Modal
         open={!!deciding}
-        onClose={() => setDeciding(null)}
+        onClose={closeDecision}
         title={deciding?.action === 'approved' ? 'Approve claim' : 'Decline claim'}
       >
         <p className="text-sm leading-relaxed text-muted">
@@ -155,10 +170,28 @@ export function AdminReviewPanel() {
           className="mt-2 w-full rounded-[3px] border border-line bg-paper px-4 py-3 text-sm focus:border-ink"
         />
         <div className="mt-6 flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setDeciding(null)}>
+          <Button variant="secondary" onClick={closeDecision}>
             Cancel
           </Button>
           <Button onClick={confirm}>Confirm</Button>
+        </div>
+      </Modal>
+      <Modal open={!!handoff} onClose={closeHandoff} title="Confirm handoff">
+        <p className="text-sm leading-relaxed text-muted">
+          Confirm the item was handed to {handoff?.claimantName}. Record how and where the handoff happened.
+        </p>
+        <label className="mt-5 block text-sm font-medium" htmlFor="handoff-note">Handoff record</label>
+        <textarea
+          id="handoff-note"
+          rows={3}
+          value={handoffNote}
+          onChange={(event) => setHandoffNote(event.target.value)}
+          placeholder="Date, location, and who checked the handoff"
+          className="mt-2 w-full rounded-[3px] border border-line bg-paper px-4 py-3 text-sm focus:border-ink"
+        />
+        <div className="mt-6 flex justify-end gap-3">
+          <Button variant="secondary" onClick={closeHandoff}>Cancel</Button>
+          <Button onClick={confirmHandoff} disabled={handoffNote.trim().length < 5}>Record Handoff</Button>
         </div>
       </Modal>
     </div>

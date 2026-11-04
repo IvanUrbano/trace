@@ -5,12 +5,13 @@ const results = []
 let failed = 0
 
 async function check(name, fn) {
+  if (process.env.TEST_FILTER && !name.includes(process.env.TEST_FILTER)) return
   try {
     await fn()
     results.push(`PASS  ${name}`)
   } catch (err) {
     failed++
-    results.push(`FAIL  ${name}\n      ${err.message.split('\n')[0]}`)
+    results.push(`FAIL  ${name}\n      ${err.message.split('\n').join('\n      ')}`)
   }
 }
 
@@ -54,14 +55,24 @@ await check('Home sections present (7 landmarks)', async () => {
 await check('Nav How It Works scrolls to section', async () => {
   await page.goto(BASE + '/')
   await page.click('nav >> text=How It Works')
-  await page.waitForTimeout(800)
-  const inView = await page.evaluate(() => {
+  await page.waitForFunction(() => {
     const el = document.getElementById('how-it-works')
     if (!el) return false
     const r = el.getBoundingClientRect()
-    return r.top < window.innerHeight && r.bottom > 0
-  })
-  if (!inView) throw new Error('how-it-works not in viewport after nav click')
+    return r.top <= window.innerHeight * 0.4 && r.bottom > window.innerHeight * 0.4
+  }, undefined, { timeout: 5000 })
+  const active = page.locator('nav[aria-label="Primary"] a[aria-current="location"]')
+  if (await active.textContent() !== 'How It Works') throw new Error('section navigation did not highlight How It Works')
+})
+
+await check('Nav Matching scrolls to section and highlights its link', async () => {
+  await page.click('nav[aria-label="Primary"] >> text=Matching')
+  await page.waitForFunction(() => {
+    const bounds = document.getElementById('smart-matching')?.getBoundingClientRect()
+    return bounds && bounds.top <= innerHeight * 0.4 && bounds.bottom > innerHeight * 0.4
+  }, undefined, { timeout: 5000 })
+  const active = page.locator('nav[aria-label="Primary"] a[aria-current="location"]')
+  if (await active.textContent() !== 'Matching') throw new Error('Matching is not highlighted')
 })
 
 await check('Discover loads with filters and cards', async () => {
@@ -92,6 +103,12 @@ await check('Discover search filters results', async () => {
   if (count === 0) throw new Error('search for wallet returned 0 items')
   const text = await page.locator('article').first().innerText()
   if (!/wallet/i.test(text)) throw new Error('first result is not a wallet')
+})
+
+await check('Invalid date in Discover URL does not crash listings', async () => {
+  await page.goto(BASE + '/discover?from=not-a-date')
+  await page.waitForSelector('article', { timeout: 5000 })
+  if (await page.locator('input[type="date"]').inputValue()) throw new Error('invalid date was kept in the filter')
 })
 
 await check('Item details page renders QR + timeline', async () => {
@@ -175,6 +192,10 @@ await check('Report form: full submit creates item and navigates', async () => {
   await page.selectOption('#location', 'Student Union')
   await page.click('button:has-text("Continue")')
   await page.waitForSelector('text=Review your report')
+  if (!page.url().includes('/report')) throw new Error('report submitted before the review step was confirmed')
+  if (!(await page.locator('button:has-text("Submit Report")').count())) {
+    throw new Error(`Submit button missing; visible buttons: ${(await page.locator('button').allTextContents()).join(' | ')}`)
+  }
   await page.click('button:has-text("Submit Report")')
   await page.waitForURL('**/items/**', { timeout: 8000 })
   await page.waitForSelector('h1:has-text("Blue Umbrella")')
@@ -225,13 +246,34 @@ await check('Claim page shows status timeline for existing claim', async () => {
 
 // ---------- Dashboard ----------
 await check('Dashboard tabs switch and show content', async () => {
+  await page.goto(BASE + '/signin')
+  await page.fill('#email', 'alex@example.com')
+  await page.click('button[type="submit"]')
+  await page.waitForURL('**/dashboard')
   await page.goto(BASE + '/dashboard?tab=notifications')
   await page.waitForSelector('nav[aria-label="Dashboard sections"]')
   await page.click('button:has-text("My Lost Reports")')
   await page.waitForTimeout(300)
   if (!page.url().includes('tab=lost')) throw new Error('tab param not updated')
   await page.click('button:has-text("Possible Matches")')
-  await page.waitForSelector('text=illustrative')
+  await page.waitForSelector('text=Match score')
+})
+
+await check('Different demo emails have separate reports and matches', async () => {
+  await clearState()
+  await page.goto(BASE + '/signin')
+  await page.fill('#email', 'sam@example.com')
+  await page.click('button[type="submit"]')
+  await page.waitForURL('**/dashboard')
+  await page.waitForSelector('text=No lost reports yet.')
+  await page.goto(BASE + '/dashboard?tab=matches')
+  await page.waitForSelector('text=Report a lost item to see possible matches.')
+})
+
+await check('Returned item cannot receive a direct-link claim', async () => {
+  await page.goto(BASE + '/claim/item_found_watch')
+  await page.waitForSelector('text=This item is not available for a new claim.')
+  if (await page.locator('button:has-text("Submit a Claim")').count()) throw new Error('claim button shown for returned item')
 })
 
 await check('Dashboard sign out clears session', async () => {
@@ -260,13 +302,28 @@ await check('Admin can approve claim and confirm handoff', async () => {
   await page.click('button:has-text("Submit Claim")')
   await page.waitForURL('**/dashboard?tab=claims')
 
+  // a second person can claim the same found item before a decision
+  await page.goto(BASE + '/signin')
+  await page.fill('#email', 'taylor@example.com')
+  await page.click('button[type="submit"]')
+  await page.waitForURL('**/dashboard')
+  await page.goto(BASE + '/items/item_keys')
+  await page.click('button:has-text("Submit a Claim")')
+  await page.waitForSelector('[role="dialog"]')
+  await page.fill('#statement', 'These are my house keys. I lost them by the parking garage elevator.')
+  await page.fill('#q1', 'Three keys on a silver ring')
+  await page.fill('#q2', 'A rectangular tag with my initials')
+  await page.fill('#q3', 'I arrived at the garage on Tuesday')
+  await page.click('button:has-text("Submit Claim")')
+  await page.waitForURL('**/dashboard?tab=claims')
+
   // admin
   await page.goto(BASE + '/signin')
   await page.fill('#email', 'admin@trace.app')
   await page.click('button[type="submit"]')
   await page.waitForURL('**/admin')
   await page.waitForSelector('text=Pending claims')
-  await page.click('button:has-text("Approve Claim")')
+  await page.locator('button:has-text("Approve Claim")').first().click()
   await page.waitForSelector('[role="dialog"]')
   await page.fill('#admin-note', 'Answers match private details.')
   await page.click('[role="dialog"] >> button:has-text("Confirm")')
@@ -276,7 +333,20 @@ await check('Admin can approve claim and confirm handoff', async () => {
   const handoffBtn = page.locator('button:has-text("Confirm Handoff")').first()
   await handoffBtn.waitFor({ timeout: 5000 })
   await handoffBtn.click()
+  await page.waitForSelector('#handoff-note')
+  await page.fill('#handoff-note', 'Claimant collected the item from campus security today.')
+  await page.click('button:has-text("Record Handoff")')
   await page.waitForSelector('text=Handoff recorded', { timeout: 5000 })
+  const outcome = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('trace_state_v1'))
+    return {
+      status: state.items.find((item) => item.id === 'item_keys')?.status,
+      claims: state.claims.filter((claim) => claim.itemId === 'item_keys').map((claim) => claim.status).sort(),
+      audit: state.audit.find((entry) => entry.action === 'handoff.confirmed' && entry.target === 'Silver Keychain with Tag')?.detail,
+    }
+  })
+  if (outcome.status !== 'returned' || outcome.claims.join(',') !== 'approved,rejected' ||
+      !outcome.audit?.includes('campus security')) throw new Error(`invalid handoff outcome: ${JSON.stringify(outcome)}`)
 })
 
 await check('Non-admin cannot access admin actions', async () => {
@@ -366,5 +436,6 @@ console.log(`\n${results.length - failed}/${results.length} passed`)
 if (consoleErrors.length) {
   console.log('\n=== PAGE ERRORS (sample) ===')
   console.log([...new Set(consoleErrors)].slice(0, 10).join('\n'))
+  failed++
 }
 process.exit(failed > 0 ? 1 : 0)

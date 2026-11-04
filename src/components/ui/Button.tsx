@@ -2,7 +2,7 @@ import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse' | 'inverseOutline'
 type Size = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,13 +14,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    'bg-ink text-paper border border-ink hover:bg-paper hover:text-ink active:scale-[0.98] disabled:bg-mist disabled:text-muted disabled:border-line',
+    'bg-accent text-paper border border-accent hover:bg-accentMid hover:border-accentMid active:scale-[0.98] disabled:bg-mist disabled:text-muted disabled:border-line',
   secondary:
     'bg-paper text-ink border border-ink hover:bg-ink hover:text-paper active:scale-[0.98] disabled:bg-mist disabled:text-muted disabled:border-line',
   ghost:
     'bg-transparent text-ink border border-transparent hover:bg-mist active:scale-[0.98] disabled:text-muted',
   danger:
     'bg-paper text-ink border border-ink hover:bg-ink hover:text-paper',
+  inverse:
+    'bg-paper text-ink border border-paper hover:bg-accentLight hover:border-accentLight active:scale-[0.98] disabled:bg-mist disabled:text-muted',
+  inverseOutline:
+    'bg-transparent text-paper border border-paper/70 hover:bg-paper hover:text-ink active:scale-[0.98] disabled:border-line disabled:text-accentLight',
 }
 
 const sizeClasses: Record<Size, string> = {

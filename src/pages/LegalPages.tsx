@@ -18,13 +18,13 @@ export function PrivacyPage() {
           <h2 className="pt-4 text-lg font-semibold tracking-tight">Private data</h2>
           <p>
             Identifying details you provide on a lost report — such as unique marks or contents —
-            are stored separately and are used only by authorized reviewers to evaluate claims.
-            Claim answers are visible only to the claimant and administrators.
+            are not shown on public pages. This demo keeps them in browser storage, which people
+            using the same browser can inspect. Do not enter sensitive information in the demo.
           </p>
           <h2 className="pt-4 text-lg font-semibold tracking-tight">Account data</h2>
           <p>
-            Your name and email are used for authentication, notifications about your reports and
-            claims, and handoff coordination. This demo stores data in your browser&apos;s local
+            Your name and email label your demo account, reports, claims, and notifications. This
+            demo stores data in your browser&apos;s local
             storage only — nothing is sent to a server.
           </p>
           <h2 className="pt-4 text-lg font-semibold tracking-tight">Camera access</h2>
@@ -34,8 +34,8 @@ export function PrivacyPage() {
           </p>
           <h2 className="pt-4 text-lg font-semibold tracking-tight">Audit records</h2>
           <p>
-            Administrative actions — claim decisions and handoff confirmations — are recorded in an
-            append-only audit log to keep the process accountable.
+            Administrative actions — claim decisions and handoff confirmations — are recorded in a
+            browser audit history. A production audit log needs server-side protection against edits.
           </p>
         </div>
       </article>

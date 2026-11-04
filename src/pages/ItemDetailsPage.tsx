@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Tag } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { ClaimForm } from '../components/ClaimForm'
 import { QRScanner } from '../components/QRScanner'
@@ -13,6 +13,7 @@ import { formatDate } from '../lib/utils'
 
 export function ItemDetailsPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { items, user, toast, claims } = useStore()
   const item = items.find((i) => i.id === id)
   const [activeImg, setActiveImg] = useState(0)
@@ -34,6 +35,8 @@ export function ItemDetailsPage() {
 
   const pageUrl = `${window.location.origin}/items/${item.id}`
   const isOwner = user?.id === item.ownerId
+  const claimable = item.status !== 'returned' && !isOwner &&
+    !claims.some((claim) => claim.itemId === item.id && claim.status === 'approved')
 
   return (
     <main className="container-x pb-24 pt-28 lg:pt-32">
@@ -124,10 +127,10 @@ export function ItemDetailsPage() {
             </p>
 
             <div className="mt-8 space-y-3">
-              {item.type === 'found' && item.status !== 'returned' && !existingClaim && user && (
+              {item.type === 'found' && claimable && !existingClaim && user && (
                 <ClaimForm item={item} />
               )}
-              {item.type === 'found' && item.status !== 'returned' && !user && (
+              {item.type === 'found' && claimable && !user && (
                 <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
                   Submit a Claim
                 </Button>
@@ -181,11 +184,16 @@ export function ItemDetailsPage() {
               <div className="mt-5">
                 <QRScanner
                   onScan={(text) => {
-                    if (text.startsWith('http')) {
-                      window.location.href = text
-                    } else {
-                      toast(`Scanned: ${text}`, 'info')
+                    try {
+                      const url = new URL(text)
+                      if (url.origin === window.location.origin && /^\/items\/[^/]+$/.test(url.pathname)) {
+                        navigate(url.pathname)
+                        return
+                      }
+                    } catch {
+                      // The scanned text is not a URL.
                     }
+                    toast('This QR code is not a TRACE item link', 'error')
                   }}
                 />
               </div>

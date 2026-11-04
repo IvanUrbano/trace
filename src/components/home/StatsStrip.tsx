@@ -1,12 +1,8 @@
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
+import { useStore } from '../../lib/store'
 
-const stats = [
-  { value: 1240, suffix: '+', label: 'Items reported' },
-  { value: 86, suffix: '%', label: 'Verified returns' },
-  { value: 320, suffix: '+', label: 'Reunions recorded' },
-  { value: 24, suffix: 'h', label: 'Avg. first response' },
-]
+interface StatData { value: number; label: string }
 
 function useCountUp(target: number, active: boolean, duration = 1400) {
   const [value, setValue] = useState(0)
@@ -31,7 +27,7 @@ function useCountUp(target: number, active: boolean, duration = 1400) {
   return value
 }
 
-function Stat({ stat, active, index }: { stat: (typeof stats)[number]; active: boolean; index: number }) {
+function Stat({ stat, active, index }: { stat: StatData; active: boolean; index: number }) {
   const value = useCountUp(stat.value, active)
   const reduce = useReducedMotion()
   return (
@@ -41,9 +37,8 @@ function Stat({ stat, active, index }: { stat: (typeof stats)[number]; active: b
       animate={active ? { opacity: 1, y: 0 } : undefined}
       transition={{ duration: 0.6, delay: index * 0.1, ease: [0.21, 0.6, 0.35, 1] }}
     >
-      <p className="font-mono text-4xl font-semibold tracking-tightest sm:text-5xl">
+      <p className="font-mono text-4xl font-semibold tracking-tightest text-accent sm:text-5xl">
         {value.toLocaleString()}
-        <span className="text-muted">{stat.suffix}</span>
       </p>
       <p className="mt-2 text-sm text-muted">{stat.label}</p>
     </motion.div>
@@ -51,10 +46,17 @@ function Stat({ stat, active, index }: { stat: (typeof stats)[number]; active: b
 }
 
 export function StatsStrip() {
+  const { items, claims } = useStore()
+  const stats: StatData[] = [
+    { value: items.length, label: 'Demo reports' },
+    { value: items.filter((item) => item.type === 'found' && item.status !== 'returned').length, label: 'Found items listed' },
+    { value: claims.length, label: 'Claims submitted' },
+    { value: items.filter((item) => item.status === 'returned').length, label: 'Items marked returned' },
+  ]
   const ref = useRef<HTMLDivElement>(null)
   const inView = useInView(ref, { once: true, margin: '-80px' })
   return (
-    <section ref={ref} className="border-y border-line bg-paper" aria-label="Platform statistics">
+    <section ref={ref} className="border-y border-line bg-paper" aria-label="Demo activity in this browser">
       <div className="container-x grid grid-cols-2 divide-line md:grid-cols-4">
         {stats.map((s, i) => (
           <Stat key={s.label} stat={s} active={inView} index={i} />

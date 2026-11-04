@@ -39,13 +39,13 @@ export function QRAccess() {
                 <QRCodeSVG value={demoUrl} size={148} level="M" />
                 {!reduce && (
                   <motion.span
-                    className="pointer-events-none absolute inset-x-2 top-2 h-8 bg-gradient-to-b from-ink/0 via-ink/10 to-ink/0"
+                    className="pointer-events-none absolute inset-x-2 top-2 h-8 bg-gradient-to-b from-accent/0 via-accent/25 to-accent/0"
                     aria-hidden
                     animate={{ y: [0, 132, 0] }}
                     transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
                   />
                 )}
-                <span className="pointer-events-none absolute inset-2 rounded-[2px] border border-ink/10" aria-hidden />
+                <span className="pointer-events-none absolute inset-2 rounded-[2px] border border-accent/25" aria-hidden />
               </motion.div>
               <div>
                 <p className="text-sm font-medium">Sample item QR</p>

@@ -11,6 +11,8 @@ export function ClaimPage() {
   const { items, claims, user } = useStore()
   const item = items.find((i) => i.id === itemId)
   const existing = claims.find((c) => c.itemId === itemId && c.claimantId === user?.id)
+  const claimable = item?.status !== 'returned' && item?.ownerId !== user?.id &&
+    !claims.some((claim) => claim.itemId === itemId && claim.status === 'approved')
 
   if (!item || item.type !== 'found') {
     return (
@@ -64,7 +66,7 @@ export function ClaimPage() {
                     {
                       id: 's1',
                       label: 'Claim submitted',
-                      description: 'Answers recorded privately',
+                      description: 'Answers saved in this browser',
                       date: existing.createdAt,
                       done: true,
                     },
@@ -85,9 +87,10 @@ export function ClaimPage() {
                     {
                       id: 's3',
                       label: 'Verified handoff',
-                      description: 'Arrange pickup once approved',
+                      description: item.status === 'returned' && existing.status === 'approved'
+                        ? 'Item returned to the approved claimant' : 'Arrange pickup once approved',
                       date: existing.updatedAt,
-                      done: false,
+                      done: item.status === 'returned' && existing.status === 'approved',
                     },
                   ]}
                 />
@@ -102,6 +105,10 @@ export function ClaimPage() {
               </Button>
             </div>
           </section>
+        ) : !claimable ? (
+          <p className="mt-10 rounded-[4px] border border-line bg-mist/60 p-8 text-center text-sm text-muted">
+            This item is not available for a new claim.
+          </p>
         ) : user ? (
           <div className="mt-10">
             <ClaimForm item={item} />
@@ -122,7 +129,7 @@ export function ClaimPage() {
         )}
 
         <p className="mt-8 text-xs leading-relaxed text-muted">
-          Your answers are stored privately and never shown in public listings.{' '}
+          This demo saves answers in your browser and does not show them on public listings.{' '}
           <Link to="/privacy" className="underline underline-offset-4">
             Privacy Policy
           </Link>

@@ -6,7 +6,11 @@ export const reportSchema = z.object({
   category: z.string().min(1, 'Choose a category.'),
   description: z.string().min(20, 'Describe the item in at least 20 characters.'),
   location: z.string().min(1, 'Choose an approximate location.'),
-  date: z.string().min(1, 'Enter the date.'),
+  date: z.string().min(1, 'Enter the date.').refine((value) => {
+    const parsed = new Date(value)
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(parsed.getTime()) &&
+      parsed.toISOString().slice(0, 10) === value && parsed.getTime() <= Date.now()
+  }, 'Enter a valid date that is not in the future.'),
   privateDetails: z.string().optional(),
 })
 
