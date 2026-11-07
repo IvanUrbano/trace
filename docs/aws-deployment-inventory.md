@@ -26,7 +26,7 @@ The account owner reviewed the remaining credit and Free-plan expiry in AWS Bill
 | Scope | Static frontend only; no API, database, shared records, or photo upload |
 | SPA rewrite | Applied: `</^[^.]+$|\\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|webp|woff|woff2|ttf|map|json|manifest|webmanifest)$)([^.]+$)/>` → `/index.html` (200); deep links return the app shell. The JSON source needs escaped dots; an earlier unescaped-dot rule also rewrote `/assets/*.js` to HTML (MIME error), and its stale edge cache entry required a redeploy. |
 | Verified | Root document and hashed JS/CSS assets return HTTP 200; `/discover`, `/signin`, `/items/...`, and `/community` return 200 (2026-11-08) |
-| Outstanding | Sign-out verification and the API-backed workflow |
+| Outstanding | The API-backed workflow |
 
 ### Amazon Cognito User Pools
 
@@ -54,7 +54,7 @@ The account owner reviewed the remaining credit and Free-plan expiry in AWS Bill
 
 The React application has an environment-gated Cognito OIDC session using authorization code with PKCE. It is disabled until ignored local Vite settings provide the user-pool and app-client values. Navigation reflects Sign In / My Account / Sign Out. Login preserves a validated local destination; logout clears the local OIDC user and redirects through the managed-login logout endpoint. The homepage and browsing remain public. In Cognito mode, old demo identities are ignored, report/claim/dashboard/admin routes require login then display an unavailable-online notice, and community is read-only. Tokens and groups do not authorize browser-demo mutations or database operations.
 
-Verification on 2026-11-08: build/typecheck, two auth-navigation unit tests, reliability tests 11/11, and a simulated-provider browser flow passed. Browser checks cover old demo-session isolation, PKCE, intended-page return, logout, invalid return URLs, expired sessions, and mobile/tablet navigation. Desktop/mobile screenshots were inspected. A real sign-in with the controlled test user from the deployed Amplify origin succeeded on 2026-11-08; the account required a permanent password set through the Cognito admin API. Sign-out from the deployed origin and invitation delivery remain unverified.
+Verification on 2026-11-08: build/typecheck, two auth-navigation unit tests, reliability tests 11/11, and a simulated-provider browser flow passed. Browser checks cover old demo-session isolation, PKCE, intended-page return, logout, invalid return URLs, expired sessions, and mobile/tablet navigation. Desktop/mobile screenshots were inspected. A real sign-in with the controlled test user from the deployed Amplify origin succeeded on 2026-11-08; the account required a permanent password set through the Cognito admin API. Sign-out from the deployed origin also works. Invitation delivery and API-backed operations remain unverified.
 
 ## Required next work
 
