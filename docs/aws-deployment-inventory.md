@@ -6,11 +6,27 @@ Updated: 2026-11-08. This is the source of truth for AWS resources that have act
 
 | Environment | Region | Account plan | Status |
 | --- | --- | --- | --- |
-| Controlled development testing | Asia Pacific (Singapore), `ap-southeast-1` | AWS Free plan; check Billing before every additional service | Cognito only; the application remains browser-local |
+| Controlled development testing | Asia Pacific (Singapore), `ap-southeast-1` | AWS Free plan; check Billing before every additional service | Cognito directory and static Amplify Hosting frontend; application data remains browser-local |
 
-The account owner reviewed the remaining credit and Free-plan expiry in AWS Billing on 2026-11-07. The Free plan does not bill charges to the account, but access ends when its credits or time period is exhausted. No budget alert, API, Lambda, RDS database, S3 bucket, Amplify deployment, or CloudWatch configuration is recorded as created.
+The account owner reviewed the remaining credit and Free-plan expiry in AWS Billing on 2026-11-07. The Free plan does not bill charges to the account, but access ends when its credits or time period are exhausted. No budget alert, API, Lambda, RDS database, S3 bucket, or CloudWatch configuration is recorded as created.
 
 ## Provisioned services
+
+### AWS Amplify Hosting
+
+| Setting | Current configuration |
+| --- | --- |
+| Purpose | Static production build of the React SPA |
+| Region | `ap-southeast-1` |
+| Source | GitHub `IvanUrbano/trace`, branch `main`, auto-deploy on push |
+| Build spec | Repository `amplify.yml`: `npm ci`, `npm run build`, artifacts in `dist` |
+| Runtime | `.nvmrc` / `engines` pin Node 24.15.0; build image Amazon Linux 2023 (default) |
+| Public URL | `https://main.d2oswv5myenb38.amplifyapp.com/` |
+| Environment variables | `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN` (public SPA values, not secrets) |
+| Scope | Static frontend only; no API, database, shared records, or photo upload |
+| SPA rewrite | Applied: `</^[^.]+$|.(?!.(css|js|map|jpg|jpeg|png|gif|webp|svg|woff2?|ttf|ico)$)(?=[^.]*$)/>` → `/index.html` (200); deep links return the app shell |
+| Verified | Root document and hashed JS/CSS assets return HTTP 200; `/discover`, `/signin`, `/items/...`, and `/community` return 200 (2026-11-08) |
+| Outstanding | Amplify-origin callback/sign-out URLs in Cognito, real signed-in browser verification |
 
 ### Amazon Cognito User Pools
 

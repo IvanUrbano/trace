@@ -44,7 +44,7 @@ Static search rings, dotted item-tag paths, cross marks, and margin labels give 
 ## Architecture
 
 
-The proposed AWS version uses Amplify Hosting for the frontend, Cognito for accounts, API Gateway HTTP API and Lambda for backend operations, **PostgreSQL** for records (Amazon RDS for PostgreSQL is a candidate), and private S3 for photos. IAM, CloudWatch, and AWS Budgets support permissions, monitoring, and cost alerts. A Cognito user directory has been manually created in Singapore. The SPA has an optional Cognito sign-in/account flow; the backend services remain undeployed.
+The proposed AWS version uses Amplify Hosting for the frontend, Cognito for accounts, API Gateway HTTP API and Lambda for backend operations, **PostgreSQL** for records (Amazon RDS for PostgreSQL is a candidate), and private S3 for photos. IAM, CloudWatch, and AWS Budgets support permissions, monitoring, and cost alerts. The static frontend is deployed at `https://main.d2oswv5myenb38.amplifyapp.com/` (Amplify Hosting, branch `main`, static build only), and a Cognito user directory exists in Singapore. The SPA has an optional Cognito sign-in/account flow; the backend services, shared records, and photo upload remain undeployed.
 
 A PostgreSQL migration and server-only repository are implemented and tested locally. They are not connected to the React app or an HTTP API; the current app still uses the browser demo store. See [local PostgreSQL setup](docs/postgres-local.md) for migration/testing and the remaining security work.
 

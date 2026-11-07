@@ -71,10 +71,17 @@ Hero refinement (2026-11-07): glyph dust has roughly 15–20% farther drift/lift
 
 Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use static decorative search rings, dotted item-tag paths, margin labels, and small cross marks. `SurroundingDetails` is aria-hidden and pointer-transparent; mobile reduces this to faint cropped rings. No extra animation or external assets are used.
 
+### Deployed static frontend (2026-11-08)
+
+- AWS Amplify Hosting serves the production frontend at `https://main.d2oswv5myenb38.amplifyapp.com/` from branch `main` of `https://github.com/IvanUrbano/trace`. It builds with the repository `amplify.yml` (`npm ci`, `npm run build`, artifacts in `dist`). `.nvmrc` pins Node 24.15.0 and `package.json` declares `engines.node >=24 <25`; the Amplify build image is Amazon Linux 2023 default.
+- The Cognito user-pool ID, app-client ID, and managed-login domain are configured as Amplify environment variables. These are public SPA values baked into the browser bundle, not secrets. Local values remain only in ignored `.env.local`.
+- Verified after the first deploy: the root document and hashed JS/CSS assets return HTTP 200. The SPA rewrite rule (`</^[^.]+$|.(?!.(css|js|map|jpg|jpeg|png|gif|webp|svg|woff2?|ttf|ico)$)(?=[^.]*$)/>` → `/index.html`, 200) is applied, and direct navigation to `/discover`, `/signin`, `/items/...`, and `/community` now returns 200 with the app shell.
+- The deployment is static only. There is no API, database, shared records, photo upload, or server-side authorization. In Cognito mode the deployed app still shows the unavailable-online notices for report/claim/dashboard/admin routes, and Cognito callback/sign-out URLs for the Amplify origin must be registered before sign-in can complete there.
+
 ### Not implemented or not production guarantees
 
 
-- No authenticated HTTP API, server-authorized report/claim workflow, shared application records, or cross-device frontend synchronization is implemented. SPA OIDC sign-in is implemented and tested with a simulated provider; real AWS login/logout remains unverified. The manually created Cognito directory is the only AWS resource currently known to be provisioned; PostgreSQL schema/repository code remains local and is not connected to the browser demo or AWS.
+- No authenticated HTTP API, server-authorized report/claim workflow, shared application records, or cross-device frontend synchronization is implemented. SPA OIDC sign-in is implemented and tested with a simulated provider; real AWS login/logout remains unverified. The provisioned AWS resources are the Cognito directory and the static Amplify Hosting app; PostgreSQL schema/repository code remains local and is not connected to the browser demo or AWS.
 - Demo email separation is a UI/data-consistency feature, not authentication. Anyone can enter the demo admin email.
 - All browser state, including roles, private details, claims, and audit history, can be inspected or changed locally.
 - Client-side guards are not a security boundary and do not solve simultaneous requests from multiple devices.
@@ -84,12 +91,14 @@ Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use s
 - Notifications are in-app records only. There is no email or SMS delivery.
 - The optional report link and reviewer evidence work in the demo, but the browser sends/stores private data locally without a security boundary. Real identity, restricted API responses, concurrent writes, reviewer permissions, and dispute/appeal/custody policies remain unfinished.
 - The demo exposes only one admin login. It cannot review its own claim; testing a separate reviewer currently requires domain fixtures until multiple real admin accounts exist.
-- `npm audit` reports an existing high-severity advisory [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) for locked Zod 3.25.76 (also present before the PostgreSQL change). The suggested fix is a breaking Zod 4 upgrade. The repository bounds report/claim inputs before parsing, but this is not a general remedy. Upgrade and test Zod and enforce HTTP body limits before accepting untrusted requests.
+- The high-severity Zod advisory [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) is resolved: `zod` is now 4.6.7 and `npm audit` reports zero vulnerabilities. `@hookform/resolvers` was upgraded to 7.x because the Zod-3-era 3.x resolver produced runtime `ZodError` page errors with Zod 4. HTTP request-size limits are still required before accepting untrusted API requests; the repository bounds report/claim inputs before parsing, but that is not a general remedy.
 
 ## 4. Repository map
 
 | Path | Responsibility |
 | --- | --- |
+| `amplify.yml` | Amplify Hosting build spec: `npm ci`, `npm run build`, `dist` artifacts |
+| `.nvmrc` | Pinned Node 24.15.0 for local/CI/Amplify builds |
 | `src/App.tsx` | Routes, page loading/transitions, global layout |
 | `src/components/Navbar.tsx` | Floating glass navigation, separate brand/action, page/section selection, mobile disclosure |
 | `src/lib/types.ts` | Item, claim, user, notification, audit types; category/location lists; re-exports contract statuses |
@@ -221,6 +230,8 @@ git diff --check
 
 Latest recorded verification, 2026-11-07: PostgreSQL 18.3 ran in an isolated local test cluster; migration applied successfully and repeat application was recognized, and PostgreSQL integration tests passed 8/8 including competing approvals, independent database constraints, scoped private evidence and community matching, rollback, linked return, and concurrent/idempotent handoff retries. Production build/typecheck, contract tests 21/21, reliability tests 11/11, matching 4/4, hero-timeline tests 9/9, and browser workflows 32/32 passed after adding `pg@8.16.3`. After adding the Cognito SPA boundary, typecheck and production build passed and the local `/signin` HTTP route returned 200; an actual Cognito redirect, invitation email, and signed-in browser session remain unverified. The targeted mobile linked-claim workflow and local workflows 11/11 passed earlier in this session. The 2026-11-07 animation pass (settle-anywhere CSS idle bounce and navbar violet passing light) passed typecheck, production build, a 6/6 idle-bounce browser check, a 6/6 sheen browser check, hero-timeline 10/10, consistency 32/32, and `git diff --check`; the Cognito-enabled local build was restored afterwards. `npm audit` reported the existing high-severity Zod advisory described above. PostgreSQL is not connected to the browser or a verified API. Actual-device camera behavior and FPS remain unmeasured.
 
+Amplify/Zod update, 2026-11-08: typecheck and production build passed; matching 4/4, contract 21/21, reliability 11/11, hero-timeline 10/10, and consistency 32/32 passed after the Zod 4 and `@hookform/resolvers` 7 upgrades. `npm audit` reports zero vulnerabilities. The Amplify deployment was verified with HTTP requests: root document and hashed JS/CSS assets return 200, and `/discover`, `/signin`, `/items/...`, and `/community` return 200 after the SPA rewrite rule. `scripts/local-workflows-test.mjs` was not fully rerun: its fake-camera scanner check fails in this environment (the fake video track ends shortly after `getUserMedia` inside the html5-qrcode flow, with no `stop()` call observed), and the community layout check was corrected to the real 1,280px breakpoint. Real Cognito sign-in against AWS remains unverified.
+
 ## 7. Ordered work remaining
 
 Auth verification update, 2026-11-08: build/typecheck, `node --test scripts/auth-navigation-test.mjs` (2/2), reliability (11/11), and `node scripts/auth-browser-test.mjs` passed. The browser suite uses a simulated OIDC provider against the configured dev server, without AWS credentials; desktop/mobile screenshots were inspected. `git diff --check` passed. Real invited-user AWS login/logout remains unverified. The broader suites recorded above were not rerun for this account-navigation change.
@@ -242,7 +253,7 @@ Statuses: `DONE` means verified; `TODO` means unimplemented; `INVESTIGATE` means
 - [DONE] Repair camera closure during import/startup and SPA unmount. Unit and synthetic-camera browser checks verify eventual tracks stop and stale decode callbacks are ignored. The scanner keeps its imperative host attached offscreen until cleanup and waits for playback to settle. Actual-device permission dialogs and camera indicators remain a manual follow-up.
 - [DONE] Guard submission/navigation during photo processing and prevent concurrent file batches. Acceptance: pending photos disable Continue/Submit and selection/removal; leaving does not publish a report; image-element fallback produces a JPEG when `createImageBitmap` is absent. Physical mobile browser APIs still need verification.
 - [DONE] Add a local Mandaluyong Community Board with posts/announcements only. Acceptance: guest browsing, member posting, admin-only announcements, author/admin confirmed removal, search, reload, write-failure draft preservation, and desktop/tablet/mobile layout checks. No AWS/shared posts or official partnerships are implied.
-- [TODO] Pin the supported Node version and automate build/typecheck/matching checks in CI. Add browser checks with a known Chrome/runtime setup.
+- [DONE] Pin the supported Node version (`engines` + `.nvmrc`, Node 24.15.0) and add an `amplify.yml` build spec. Automating build/typecheck/matching checks in CI and browser checks with a known Chrome/runtime setup remain TODO.
 
 ### B. Define the backend contract before provisioning
 
@@ -252,7 +263,7 @@ Statuses: `DONE` means verified; `TODO` means unimplemented; `INVESTIGATE` means
 - [DONE] Make status names explicit and version the v1→v2 browser migration. Existing demo data must not be uploaded automatically; migration tests pass.
 - [DONE] Specify the six API error codes and HTTP mappings. Contract tests pass; local demo success now follows confirmed storage. Server persistence confirmation remains part of backend acceptance.
 - [DONE] Add a local PostgreSQL migration and server-only transactional repository foundation. Acceptance: a dedicated PostgreSQL test database verifies public-field separation, reviewer/community scope, rollback, one approved claim per found/lost report, and idempotent concurrent handoffs. This does not complete HTTP/API/auth integration or production database privileges.
-- [TODO] Before exposing untrusted HTTP requests, upgrade the existing vulnerable Zod dependency compatibly, impose request-size limits before JSON/schema parsing, and rerun dependency security checks.
+- [DONE] Upgrade Zod to 4.6.7 (with `@hookform/resolvers` 7.x) and rerun dependency security checks: `npm audit` reports zero vulnerabilities. Request-size limits before JSON/schema parsing are still required before exposing untrusted HTTP requests.
 
 Proposed minimum API (design to confirm during implementation):
 
@@ -289,7 +300,7 @@ Acceptance for C: two real accounts on separate browsers share reports but canno
 ### D. Connect and deploy the frontend
 
 - [TODO] Replace browser mutations with the API adapter; add real loading/error/retry states, disable repeated submissions, and handle token/session expiry.
-- [TODO] Deploy through Amplify Hosting using the pinned runtime, `npm ci`, `npm run build`, and `dist` artifacts. Configure SPA rewrites and verify direct detail-page refreshes.
+- [TODO] Deploy through Amplify Hosting using the pinned runtime, `npm ci`, `npm run build`, and `dist` artifacts. Configure SPA rewrites and verify direct detail-page refreshes. First deployment exists (2026-11-08, static frontend, root/assets and SPA deep links return 200); the deployed-origin Cognito callback/sign-out URLs and real signed-in browser verification remain outstanding.
 - [TODO] Configure environment-specific public settings, allowed origins, Cognito callbacks/logout URLs, and actual deployment QR origins.
 - [TODO] Run the workflow checks against the deployed test environment using non-sensitive fixtures. Test mobile layout and camera permissions manually when automated coverage is insufficient.
 - [TODO] Document rollback, backup/recovery decisions, logs, and a way to remove test resources. Add custom DNS, WAF, SES/email, or EventBridge only when needed and cost-reviewed.
@@ -306,6 +317,10 @@ Acceptance for D: build is reproducible from GitHub; deep links and login redire
 Acceptance for E: documented dataset source and split, reproducible evaluation, measured results with limits, and no claim that ranking proves ownership.
 
 ## 8. Major-change history
+
+### 2026-11-08 — Amplify Hosting deployment and Zod 4 security upgrade
+
+Deployed the static frontend through AWS Amplify Hosting from GitHub branch `main` at `https://main.d2oswv5myenb38.amplifyapp.com/`. Added `amplify.yml` (`npm ci`, `npm run build`, `dist` artifacts), `.nvmrc` (Node 24.15.0), and `engines.node >=24 <25`; the Cognito pool/client/domain values are set as Amplify environment variables (public SPA values). Upgraded `zod` 3.25.76 → 4.6.7 to resolve advisory GHSA-mrhx-c7xc-m3w5 (`npm audit`: zero vulnerabilities) and migrated deprecated calls (`z.email`, `z.uuid`, `z.iso.datetime`); `@hookform/resolvers` 3.x → 7.x was required because the old resolver threw runtime `ZodError` with Zod 4. Also fixed the local-workflows layout check to use the real 1,280px disclosure breakpoint. Verification: typecheck, production build, matching 4/4, contract 21/21, reliability 11/11, hero-timeline 10/10, consistency 32/32; deployed root and hashed assets return HTTP 200, and SPA deep links return 200 after the rewrite rule. The deployment is static only; Cognito callback/sign-out URLs for the Amplify origin and real signed-in verification remain outstanding, and no API, database, or shared records exist.
 
 ### 2026-11-08 — public landing page and Cognito account navigation
 
