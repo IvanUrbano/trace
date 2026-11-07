@@ -338,7 +338,7 @@ await check('Admin can approve claim and confirm handoff', async () => {
   await page.click('button:has-text("Record Handoff")')
   await page.waitForSelector('text=Handoff recorded', { timeout: 5000 })
   const outcome = await page.evaluate(() => {
-    const state = JSON.parse(localStorage.getItem('trace_state_v1'))
+    const state = JSON.parse(localStorage.getItem('trace_state_v2'))
     return {
       status: state.items.find((item) => item.id === 'item_keys')?.status,
       claims: state.claims.filter((claim) => claim.itemId === 'item_keys').map((claim) => claim.status).sort(),

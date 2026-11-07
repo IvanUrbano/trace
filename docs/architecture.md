@@ -2,11 +2,15 @@
 
 ![AWS Architecture](./aws-architecture.png)
 
-This older diagram describes an expanded alternative, not the initial deployment checklist. The current app is a static React SPA with local demo state; these services are not deployed yet. Use [aws-services.md](./aws-services.md) as the primary service plan and [aws-starter.md](./aws-starter.md) for implementation order. The first version uses Amplify Hosting instead of separately configuring website S3/CloudFront, and defers custom DNS, WAF, asynchronous matching, and application email.
+This older diagram describes an expanded alternative, not the initial deployment checklist. Its DynamoDB labels are outdated: the user selected PostgreSQL, with RDS for PostgreSQL as a candidate. The React app uses local demo state; a separate PostgreSQL repository exists locally but is not connected to the app or an API. A Cognito user directory exists in Asia Pacific (Singapore) with optional SPA sign-in/account integration, but no authenticated backend. Use [aws-services.md](./aws-services.md) as the primary service plan and [aws-starter.md](./aws-starter.md) for implementation order. The first version uses Amplify Hosting instead of separately configuring website S3/CloudFront, and defers custom DNS, WAF, asynchronous matching, and application email.
 
 The diagram's `SNS → SES` label is conceptual and omits a required integration: SNS does not directly invoke SES. A Lambda subscriber would be needed, or the application Lambda can call SES directly. The written flow below uses the latter. The product goal remains human verification and a recorded handoff for every return.
 
+Local implementation update (2026-11-08): report/claim mutations save the browser snapshot before updating memory or reporting success. Invalid nested snapshots are preserved with writes blocked; this is demo reliability, not backend security or shared concurrency. `/community` adds a Mandaluyong demo board with member posts, admin-only announcements, and author/admin soft removal in a separate `trace_community_v1` snapshot. It has no comments, votes, cross-device sharing, or official office integration. Future community APIs must derive author identity from verified sessions, enforce moderation permissions, and exclude removed posts from public responses. In Cognito mode, the SPA ignores old demo identities, uses the OIDC session for navigation and logout, preserves validated local return destinations, and gates report/claim/dashboard/admin routes behind sign-in followed by an unavailable-online notice. Community stays read-only. Tokens and groups do not authorize browser-demo mutations or PostgreSQL operations. Live AWS login/logout remains a manual verification step.
+
 ## Service selection
+
+The local claim workflow can optionally link an active lost report and show finder/reference and claimant evidence to the demo reviewer. It blocks self-review and conflicting approvals for the same lost report, and closes related pending claims after handoff. The future API must enforce these permissions and linked-report constraints with verified identity and atomic writes; browser-local enforcement is not a security or concurrency guarantee.
 
 | Concern | Service | Rationale |
 | --- | --- | --- |
@@ -16,13 +20,13 @@ The diagram's `SNS → SES` label is conceptual and omits a required integration
 | Authentication | **Amazon Cognito** | User pool; `admin` group for reviewers; JWT passed to the API |
 | API | **API Gateway (HTTP API)** | Lambda proxy integration; JWT authorizer; throttling |
 | Compute | **Lambda** | Items, claims, handoff, public GET — event-driven, no servers |
-| Core data | **DynamoDB** | Items and claims; single-digit-ms access; PK/SK access patterns |
-| Audit trail | **DynamoDB (separate table)** | Append-only; IAM denies update/delete |
+| Core data | **PostgreSQL (RDS candidate)** | Relational reports and claims; scoped access, constraints, and transactions |
+| Audit trail | **PostgreSQL audit table** | Restricted write/read roles and retention still need implementation |
 | Media | **S3 (private bucket)** | Item photos; SSE; block public access; presigned upload URLs only |
 | Match ranking | **EventBridge → Lambda** | Async ranking on report/claim events; scores remain advisory |
-| Notifications | **Lambda → SES** | Optional claim status and handoff emails; in-app notifications live in DynamoDB |
+| Notifications | **Lambda → SES** | Optional claim status and handoff emails; in-app notifications live in PostgreSQL |
 | Configuration | **SSM Parameter Store** | Feature flags and runtime config |
-| Observability | **CloudWatch + X-Ray** | Logs, metrics, traces across API → Lambda → DynamoDB |
+| Observability | **CloudWatch + X-Ray** | Logs, metrics, traces across API → Lambda → PostgreSQL |
 
 ## How the services interact
 
@@ -45,7 +49,7 @@ Users sign in through **Cognito**. Successful sign-in returns JWT access/ID toke
 
 ### 4. Persistence (flow 5)
 
-Lambdas write to **DynamoDB** (items, claims) and the **audit table**. Photo bytes go straight from the browser to the **media S3 bucket** using presigned URLs — the API never proxies file uploads.
+The planned backend writes to **PostgreSQL** (items, claims, and audit records). Photo bytes would go from the browser to the **media S3 bucket** using constrained presigned uploads. Private network access, database credentials, connection pooling, and RDS costs still need design and verification.
 
 ### 5. Async match ranking (flow 6)
 
@@ -53,7 +57,7 @@ Lambdas write to **DynamoDB** (items, claims) and the **audit table**. Photo byt
 
 ### 6. Notifications (flow 7)
 
-If application email is added, a **Lambda** handler calls **SES** for claim and handoff messages. SNS is optional fan-out and would require a subscriber such as Lambda to invoke SES. The first version only needs in-app notifications stored in DynamoDB and scoped to the user. Cognito verification/recovery email settings are configured separately.
+If application email is added, a **Lambda** handler calls **SES** for claim and handoff messages. SNS is optional fan-out and would require a subscriber such as Lambda to invoke SES. The first version only needs in-app notifications stored in PostgreSQL and scoped to the user. Cognito verification/recovery email settings are configured separately.
 
 ### 7. Observability & config (flow 8)
 
@@ -63,7 +67,7 @@ Configure Lambda logs and HTTP API access logs in **CloudWatch**. Additional Lam
 
 - Media bucket: **block public access**, SSE, presigned uploads only
 - Cognito **admin group** gates handoff and claim decisions
-- Audit table: IAM policy **denies** `UpdateItem` / `DeleteItem`
+- Audit table: restricted database roles and append-only controls must be designed and verified
 - Public item responses **never** include private identifying details or claim answers
 - Match Lambda output is advisory; **approval is always human**
 

@@ -17,7 +17,8 @@ const questions = [
 
 export function ClaimForm({ item }: { item: Item }) {
   const [open, setOpen] = useState(false)
-  const { submitClaim, user, toast } = useStore()
+  const { submitClaim, user, toast, items } = useStore()
+  const lostReports = items.filter((report) => report.type === 'lost' && report.status === 'active' && report.ownerId === user?.id)
   const navigate = useNavigate()
 
   const {
@@ -33,9 +34,9 @@ export function ClaimForm({ item }: { item: Item }) {
   const onSubmit = async (data: ClaimInput) => {
     const submitted = submitClaim({
       itemId: item.id,
-      itemTitle: item.title,
       statement: data.statement,
       contactEmail: data.contactEmail,
+      relatedLostReportId: data.relatedLostReportId || undefined,
       questions: [
         { id: 'q1', question: questions[0], answer: data.q1 },
         { id: 'q2', question: questions[1], answer: data.q2 },
@@ -62,6 +63,14 @@ export function ClaimForm({ item }: { item: Item }) {
           them in your browser, so avoid sensitive information.
         </p>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+          {lostReports.length > 0 && <div>
+            <label htmlFor="relatedLostReportId" className="text-sm font-medium">Link your lost report <span className="font-normal text-muted">(optional)</span></label>
+            <select id="relatedLostReportId" {...register('relatedLostReportId')} className={inputCls} defaultValue="">
+              <option value="">No linked report</option>
+              {lostReports.map((report) => <option key={report.id} value={report.id}>{report.title} · {report.location}</option>)}
+            </select>
+            <p className="mt-1.5 text-xs text-muted">Your linked report will be closed if this item is returned to you.</p>
+          </div>}
           <div>
             <label htmlFor="contactEmail" className="text-sm font-medium">
               Contact email

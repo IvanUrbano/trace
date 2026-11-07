@@ -4,8 +4,10 @@ import { Route, Routes, useLocation } from 'react-router-dom'
 import { Footer } from './components/Footer'
 import { Navbar } from './components/Navbar'
 import { NotificationToast } from './components/NotificationToast'
+import { AccountPage, CloudAccess } from './pages/AccountPage'
 const AdminPage = lazy(() => import('./pages/AdminPage').then((module) => ({ default: module.AdminPage })))
 const ClaimPage = lazy(() => import('./pages/ClaimPage').then((module) => ({ default: module.ClaimPage })))
+const CommunityPage = lazy(() => import('./pages/CommunityPage').then((module) => ({ default: module.CommunityPage })))
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
 const DiscoverPage = lazy(() => import('./pages/DiscoverPage').then((module) => ({ default: module.DiscoverPage })))
 const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
@@ -57,11 +59,13 @@ export default function App() {
             <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageTransition><HomePage /></PageTransition>} />
             <Route path="/discover" element={<PageTransition><DiscoverPage /></PageTransition>} />
+            <Route path="/community" element={<PageTransition><CommunityPage /></PageTransition>} />
             <Route path="/items/:id" element={<PageTransition><ItemDetailsPage /></PageTransition>} />
-            <Route path="/report" element={<PageTransition><ReportPage /></PageTransition>} />
-            <Route path="/claim/:itemId" element={<PageTransition><ClaimPage /></PageTransition>} />
-            <Route path="/dashboard" element={<PageTransition><DashboardPage /></PageTransition>} />
-            <Route path="/admin" element={<PageTransition><AdminPage /></PageTransition>} />
+            <Route path="/report" element={<PageTransition><CloudAccess feature="Reporting"><ReportPage /></CloudAccess></PageTransition>} />
+            <Route path="/claim/:itemId" element={<PageTransition><CloudAccess feature="Claim submission"><ClaimPage /></CloudAccess></PageTransition>} />
+            <Route path="/dashboard" element={<PageTransition><CloudAccess feature="Your dashboard"><DashboardPage /></CloudAccess></PageTransition>} />
+            <Route path="/admin" element={<PageTransition><CloudAccess feature="Reviewer tools"><AdminPage /></CloudAccess></PageTransition>} />
+            <Route path="/account" element={<PageTransition><AccountPage /></PageTransition>} />
             <Route path="/signin" element={<PageTransition><SignInPage /></PageTransition>} />
             <Route path="/privacy" element={<PageTransition><PrivacyPage /></PageTransition>} />
             <Route path="/terms" element={<PageTransition><TermsPage /></PageTransition>} />

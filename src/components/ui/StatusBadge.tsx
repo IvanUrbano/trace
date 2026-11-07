@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils'
 const itemLabels: Record<ItemStatus, string> = {
   unclaimed: 'Unclaimed',
   claim_pending: 'Claim Pending',
-  claim_under_review: 'Approved — Handoff',
+  awaiting_handoff: 'Approved — Handoff',
   returned: 'Returned',
   active: 'Active',
 }
@@ -12,7 +12,7 @@ const itemLabels: Record<ItemStatus, string> = {
 const itemDot: Record<ItemStatus, string> = {
   unclaimed: 'bg-ink',
   claim_pending: 'bg-muted',
-  claim_under_review: 'bg-ink/40',
+  awaiting_handoff: 'bg-ink/40',
   returned: 'bg-transparent border border-ink',
   active: 'bg-ink',
 }

@@ -3,10 +3,12 @@ import { Menu, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useStore } from '../lib/store'
+import { useCognitoSession } from '../lib/cognito'
 import { cn } from '../lib/utils'
 
 const links = [
   { to: '/discover', label: 'Discover Items' },
+  { to: '/community', label: 'Community' },
   { to: '/#how-it-works', label: 'How It Works' },
   { to: '/#smart-matching', label: 'Matching' },
   { to: '/report', label: 'Report an Item' },
@@ -18,6 +20,7 @@ export function Navbar() {
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   const { user } = useStore()
+  const session = useCognitoSession()
   const location = useLocation()
   const { scrollYProgress } = useScroll()
   const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.3 })
@@ -60,8 +63,13 @@ export function Navbar() {
       ? 'border-accentLight/70 bg-accentLight text-ink shadow-sm'
       : 'border-transparent text-paper/85 hover:bg-paper/10 hover:text-paper',
   )
-  const accountLink = user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/signin'
-  const accountLabel = user ? (user.role === 'admin' ? 'Admin' : 'Dashboard') : 'Sign In'
+  const accountLink = session ? (session.auth.isAuthenticated ? '/account' : '/signin') : user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/signin'
+  const accountLabel = session ? (session.auth.isLoading ? 'Checking account…' : session.auth.isAuthenticated ? 'My Account' : 'Sign In') : user ? (user.role === 'admin' ? 'Admin' : 'Dashboard') : 'Sign In'
+  const logout = session?.auth.isAuthenticated && (
+    <button type="button" className={linkClass(false)} disabled={session.busy} onClick={() => void session.logout()}>
+      {session.busy ? 'Signing out…' : 'Sign Out'}
+    </button>
+  )
 
   return (
     <header
@@ -70,22 +78,23 @@ export function Navbar() {
       <Link to="/" aria-label="TRACE home" className="pointer-events-auto absolute left-3 top-2 rounded-xl bg-paper/85 px-3 py-2 text-base font-bold tracking-[0.25em] text-ink backdrop-blur-md focus-visible:outline-accent sm:left-6">
         TRACE
       </Link>
-      <Link to="/report" aria-current={selected('/report') ? 'page' : undefined} className={cn('pointer-events-auto absolute right-6 top-2 hidden items-center gap-2 rounded-2xl border px-3.5 py-2 text-[13px] font-semibold shadow-sm backdrop-blur-xl transition-colors md:inline-flex', selected('/report') ? 'border-accentLight bg-accentLight text-ink' : 'border-accentLight/40 bg-[#160D25]/85 text-paper hover:bg-accent')}>
+      <Link to="/report" aria-current={selected('/report') ? 'page' : undefined} className={cn('pointer-events-auto absolute right-6 top-2 hidden items-center gap-2 rounded-2xl border px-3.5 py-2 text-[13px] font-semibold shadow-sm backdrop-blur-xl transition-colors xl:inline-flex', selected('/report') ? 'border-accentLight bg-accentLight text-ink' : 'border-accentLight/40 bg-[#160D25]/85 text-paper hover:bg-accent')}>
         Report an Item <span aria-hidden="true">↗</span>
       </Link>
       <div className={cn(
-        'pointer-events-auto relative ml-auto w-[calc(100%-110px)] max-w-[420px] overflow-hidden rounded-[26px] border border-paper/15 text-paper shadow-[inset_0_1px_0_rgba(231,234,243,0.14),0_10px_32px_-12px_rgba(22,13,37,0.5)] backdrop-blur-2xl backdrop-saturate-150 transition-colors duration-300 md:mx-auto md:w-fit md:max-w-[760px]',
+        'pointer-events-auto relative ml-auto w-[calc(100%-110px)] max-w-[420px] overflow-hidden rounded-[26px] border border-paper/15 text-paper shadow-[inset_0_1px_0_rgba(231,234,243,0.14),0_10px_32px_-12px_rgba(22,13,37,0.5)] backdrop-blur-2xl backdrop-saturate-150 transition-colors duration-300 xl:mx-auto xl:w-fit xl:max-w-[760px]',
         scrolled || open ? 'bg-[#160D25]/90' : 'bg-[#160D25]/80',
       )} style={{ backgroundImage: 'linear-gradient(135deg, rgba(231,234,243,0.07), transparent 45%, rgba(143,157,192,0.04))' }}>
+      <div className="nav-sheen" aria-hidden="true" />
       <motion.div
         className="absolute inset-x-0 bottom-0 h-px origin-left bg-accentLight/60"
         style={{ scaleX: progress }}
         aria-hidden
       />
       <div className="flex h-14 items-center justify-between gap-6 px-3">
-        <span className="pl-2 text-xs font-medium tracking-[0.12em] text-paper/80 md:hidden">Navigation</span>
+        <span className="pl-2 text-xs font-medium tracking-[0.12em] text-paper/80 xl:hidden">Navigation</span>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary">
           {links.filter((l) => l.to !== '/report').map((l) => (
             <Link
               key={l.to}
@@ -98,15 +107,16 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 xl:flex">
           <Link to={accountLink} className={linkClass(selected(accountLink))} aria-current={selected(accountLink) ? 'page' : undefined}>
             {accountLabel}
           </Link>
+          {logout}
         </div>
 
         <button
           ref={menuButton}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-paper/15 bg-paper/5 hover:bg-paper/10 focus-visible:outline-paper md:hidden"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-paper/15 bg-paper/5 hover:bg-paper/10 focus-visible:outline-paper xl:hidden"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-controls={open ? 'trace-mobile-nav' : undefined}
@@ -117,7 +127,7 @@ export function Navbar() {
       </div>
 
       {open && (
-        <div className="border-t border-paper/10 md:hidden">
+        <div className="border-t border-paper/10 xl:hidden">
           <nav id="trace-mobile-nav" className="flex flex-col gap-1 p-3" aria-label="Mobile">
             {links.map((l) => (
               <Link
@@ -133,10 +143,13 @@ export function Navbar() {
             <Link to={accountLink} className={linkClass(selected(accountLink))} aria-current={selected(accountLink) ? 'page' : undefined} onClick={() => setOpen(false)}>
               {accountLabel}
             </Link>
+            {logout}
           </nav>
         </div>
       )}
       </div>
+      <div data-testid="nav-divider" aria-hidden="true" className="pointer-events-none absolute -bottom-3 left-2 right-2 h-px bg-gradient-to-r from-transparent via-accentLight/70 to-transparent sm:left-6 sm:right-6" />
+      {session?.error && <p role="alert" className="pointer-events-auto mx-auto mt-4 max-w-lg rounded border border-line bg-paper p-3 text-sm text-ink">{session.error}</p>}
     </header>
   )
 }

@@ -1,12 +1,36 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { sampleHeroFrame } from '../src/components/home/hero3d/scrollTimeline.ts'
+import { ashFadeEdge, ashParticlePhase } from '../src/components/home/ashTiming.ts'
+
+test('particles begin moving at the same edge where text starts fading', () => {
+  for (const progress of [0.2, 0.4, 0.6, 0.8]) {
+    const edge = ashFadeEdge(progress)
+    assert.equal(ashParticlePhase(edge, edge + 0.09), 0)
+    assert.ok(ashParticlePhase(edge, edge + 0.07) > 0)
+    assert.ok(ashParticlePhase(edge, edge) > 0)
+  }
+})
 
 const finiteVec = (v, label) => {
   for (const axis of ['x', 'y', 'z']) {
     assert.ok(Number.isFinite(v[axis]), `${label}.${axis} must be finite, got ${v[axis]}`)
   }
 }
+
+test('dust lingers behind the fade edge and settles at chapter boundaries', () => {
+  assert.ok(ashParticlePhase(0.6, 0.3) < 1, 'mid-copy dust should still be traveling')
+  for (const position of [0, 0.3, 0.7, 0.9, 1]) {
+    assert.ok(ashParticlePhase(position - 0.08, position) < 1e-9)
+    assert.ok(Math.abs(ashParticlePhase(ashFadeEdge(1), position) - 1) < 1e-9)
+    let previous = 0
+    for (let i = 0; i <= 100; i++) {
+      const phase = ashParticlePhase(ashFadeEdge(i / 100), position)
+      assert.ok(phase >= previous && phase >= 0 && phase <= 1)
+      previous = phase
+    }
+  }
+})
 
 test('samples finite frames across the full scroll range', () => {
   for (let i = 0; i <= 100; i++) {

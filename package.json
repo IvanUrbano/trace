@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "vite --configLoader runner",
     "build": "tsc -b && vite build --configLoader runner",
@@ -11,23 +14,31 @@
     "render:arch": "node scripts/render-arch.mjs",
     "test:consistency": "node scripts/consistency-test.mjs",
     "test:matching": "node --test scripts/matching-test.mjs",
+    "test:contract": "node --test scripts/contract-test.mjs",
+    "test:reliability": "node --test scripts/reliability-test.mjs",
+    "test:local-workflows": "node scripts/local-workflows-test.mjs",
+    "db:migrate": "node scripts/postgres-migrate.mjs",
+    "test:postgres": "node --test scripts/postgres-test.mjs",
     "test:hero-timeline": "node --test scripts/hero-timeline-test.mjs"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.10.0",
+    "@hookform/resolvers": "^7.0.3",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.15.0",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.469.0",
+    "oidc-client-ts": "^3.5.0",
+    "pg": "^8.16.3",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
+    "react-oidc-context": "^3.3.1",
     "react-router-dom": "^7.1.1",
     "three": "^0.170.0",
-    "zod": "^3.24.1"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

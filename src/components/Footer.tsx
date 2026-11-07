@@ -6,6 +6,7 @@ const cols = [
     title: 'Product',
     links: [
       { to: '/discover', label: 'Discover Items' },
+      { to: '/community', label: 'Community Board' },
       { to: '/report', label: 'Report an Item' },
       { to: '/#how-it-works', label: 'How It Works' },
       { to: '/signin', label: 'Sign In' },

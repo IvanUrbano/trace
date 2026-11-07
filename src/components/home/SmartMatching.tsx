@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeftRight, CalendarCheck, Layers } from 'lucide-react'
 import { ImageReveal, RevealOnScroll } from '../motion'
 import { StatusBadge } from '../ui/StatusBadge'
+import { SurroundingDetails } from './SurroundingDetails'
 
 const matches = [
   {
@@ -42,8 +43,9 @@ const indicators = [
 
 export function SmartMatching() {
   return (
-    <section id="smart-matching" className="scroll-mt-24 bg-accentLight/20 py-24 lg:py-32" aria-labelledby="matching-heading">
-      <div className="container-x grid items-center gap-16 lg:grid-cols-2 lg:gap-20">
+    <section id="smart-matching" className="relative isolate overflow-hidden scroll-mt-24 bg-accentLight/20 py-24 lg:py-32" aria-labelledby="matching-heading">
+      <SurroundingDetails variant="matching" />
+      <div className="container-x relative grid items-center gap-16 lg:grid-cols-2 lg:gap-20">
         <div className="min-w-0">
           <RevealOnScroll>
             <p className="eyebrow">Smart Matching</p>

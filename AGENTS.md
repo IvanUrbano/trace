@@ -1,6 +1,6 @@
 # TRACE — repository instructions and work plan
 
-Last updated: 2026-11-04
+Last updated: 2026-11-08
 
 This file applies to the entire repository. Read it before making changes. It records the current implementation, the rules that must survive changes, and the remaining work. User instructions take precedence. Treat proposed features below as a roadmap, not as deployed functionality or authorization to deploy resources.
 
@@ -29,7 +29,9 @@ TRACE is a lost-and-found application. Its intended workflow is:
 - Give the user short, simple explanations. Keep detailed technical notes here and in `docs/`.
 - AWS is the intended hosting/backend platform, with Free Tier eligibility and spending controls checked before provisioning.
 - Matching should help people find candidates. A person decides ownership and records the return.
-- The next implementation phase is the shared backend and real authentication. A static deployment alone does not complete that phase.
+- Current priority is local code reliability and a simple Mandaluyong Community Board (posts and announcements only). AWS comes afterward. Shared backend and real authentication remain necessary before real multi-user operation; a static deployment alone does not complete that phase.
+- Mandaluyong is the initial community demo setting. No real city/office partnership or physical custody is implied. Office intake, staff scope, disputes, and authority referral policies are design work, not implemented operations.
+- The user selected PostgreSQL instead of the earlier DynamoDB plan. Amazon RDS for PostgreSQL is a deployment candidate, not an authorized or deployed resource. Review actual account eligibility, costs (including idle database cost), backups, network, and connection limits before provisioning.
 
 ## 3. Current state — verified baseline
 
@@ -37,34 +39,52 @@ TRACE is a lost-and-found application. Its intended workflow is:
 
 - React 18, TypeScript, Vite 6, React Router 7, Tailwind, Framer Motion.
 - Report wizard, discovery filters, item details, QR links/scanner, claims, dashboard, admin review, browser notifications, and browser audit history.
-- `src/lib/store.tsx` uses React context and `localStorage`; the keys are `trace_state_v1` and `trace_state_v1_user`.
+- `src/lib/store.tsx` uses React context and `localStorage`; the keys are `trace_state_v2` and `trace_state_v2_user`, with a fallback load that migrates `trace_state_v1` records (including the `claim_under_review` → `awaiting_handoff` status rename).
+- Report, claim, review, handoff, and notification mutations save the next snapshot before changing memory or reporting success. Failed writes leave the old state intact and allow retry; a ref prevents consecutive same-render mutations from using a stale snapshot. Invalid nested saved records show sample data with writes blocked and preserve the raw payload. Loading alone never rewrites the snapshot. Legacy sessions with an unexpected shared ID require sign-in again; sign-out writes a null marker to prevent v1 session resurrection.
+- `/community` is a Mandaluyong Community Board demo with member updates/tips, admin-only announcements, text search/category filters, and author/admin soft removal after confirmation. Posts use separate versioned `trace_community_v1` storage, save before success, and preserve the draft on write failure. There are no seeded engagement counts, comments, votes, or official notices. Posts do not create claims or influence item matching.
+- `src/lib/contract/` defines the shared API contract: statuses, the six-code error model, public/restricted DTO schemas, and request/response schemas. `src/lib/service/domain.ts` is the authoritative mutation layer (identity from actor, claim/handoff rules, notifications/audit, v1→v2 migration); `src/lib/service/types.ts` declares the async `TraceService` interface for the future API. The store is the synchronous demo adapter over the same operations.
+- A separate local PostgreSQL foundation now exists: `backend/postgres/001_initial.sql`, `backend/postgres/repository.mjs`, `scripts/postgres-migrate.mjs`, and `scripts/postgres-test.mjs`. It includes relational reports/private details, claims/answers, handoffs, audit, notifications, community posts, a restricted-field-free public view, partial unique indexes, serializable transactional claim/review/handoff operations, and handoff idempotency. Bounded matching retrieves at most 200 recent same-category found reports in the lost report's community and applies the existing heuristic to public fields. The repository is server-only and expects an actor ID supplied by a future verified session. It is not connected to the React demo, an HTTP API, or AWS. No browser data is imported automatically.
+- An Amazon Cognito user directory has been manually created in Asia Pacific (Singapore), `ap-southeast-1`, for controlled TRACE testing. It has an `admin` reviewer group and one controlled test user in that group. The React app includes an environment-gated OIDC authorization-code/PKCE session using `react-oidc-context`. Navigation reflects Sign In / My Account / Sign Out; login returns to a validated local destination, and logout clears the local OIDC user then redirects through managed login. Public browsing remains available. In Cognito mode, old demo identities are ignored, report/claim/dashboard/admin routes require sign-in then show an unavailable-online notice, and community is read-only. Cognito groups never grant demo admin privileges. No API Gateway or Lambda integration exists. Resource identifiers remain in ignored local settings. Actual AWS login/logout and allowed sign-out URLs still need verification.
+- `docs/aws-deployment-inventory.md` records the provisioned Cognito configuration, non-sensitive operational decisions, and the remaining integration work. Update it when an AWS resource or material cloud configuration changes.
+- Item status `claim_under_review` was renamed to `awaiting_handoff` (approved, awaiting handoff recording).
 - Demo login accepts an email without verification. `alex@example.com` uses seeded user `u_demo`; `admin@trace.app` uses seeded admin `u_admin`; other normalized emails receive distinct demo IDs.
 - The dashboard computes matching suggestions for each active lost report owned by the current demo user.
 - New claims are checked for sign-in, found-item eligibility, self-claiming, existing claims by that user, and an already approved claim.
 - Claim updates check the demo admin role and allowable transitions. The current implementation prevents a second approval in a single browser's current state.
+- Administrators cannot review their own claims. A linked lost report must be active and owned by the claimant; approval and handoff recheck it and prevent another approved claim from using the same lost report within the demo state. Claim statements and ownership answers reject whitespace-only input.
 - Handoff recording requires an approved claim and a note of at least five trimmed characters. It marks the found item returned, records the claimant and note in audit history, notifies the claimant, and declines other pending/review claims on that item.
+- Claimants can optionally link an active lost report when claiming a found item. Both report types can carry optional private reference details; the demo reviewer can compare the finder's reference and the claimant's linked report details. Handoff closes the linked lost report and other pending claims using it, notifying claimants and reopening alternate found items that have no remaining open claims.
 - Report dates are validated. Photos accept JPEG/PNG/WebP, at most four, with a 5,000,000-byte source limit per file. Images are resized to a maximum dimension of 1,024 pixels and converted to JPEG at quality 0.72; results over 700,000 data-URL characters are rejected.
+- Photo processing locks Continue/Submit, removal, and further file batches until complete. The form ignores results after unmount and supports an image-element decoder when `createImageBitmap` is absent. Submitting before the review step is guarded. Reports without photos show a neutral placeholder instead of unrelated stock imagery.
 - Invalid discovery date parameters are ignored. Discovery filters are derived from the URL, without a simulated loading delay.
 - The report wizard requires explicit review submission; Continue prevents the browser's default action when the button changes into a submit button.
 - The scanner accepts same-origin `/items/...` links for navigation.
 - Homepage totals come from local demo data. The homepage matching illustration still has explicitly labeled sample scores.
 - The homepage hero is a scroll-driven WebGL question mark (`src/components/home/hero3d/`) opening at 45 degrees, with a CSS SVG fallback and two desktop scroll chapters about ranked possible matches and human review. `AshLayer` samples the rendered text into canvas fragments and applies a reversible edge dissolve to all intro copy and both chapter messages; the final message remains visible at the full turn. Reduced-motion and mobile paths keep static readable copy. The site uses ink `#171926`, accent `#40506A`, light accent `#8F9DC0`, and pale background `#E7EAF3`; the navigation additionally uses dark-purple glass `#160D25` at the user's request. The hero uses a pale background and subtle circular search field; How It Works uses a pale surface, Smart Matching a light blue tint, and the final call to action a dark panel with inverse buttons.
 - Routes load on demand. External Google Fonts requests were removed; system font fallbacks work offline.
-- Desktop hero uses a 760vh section: 540vh of story travel and 120vh of final hold. Text alone uses bounded catch-up progress so rapid scrolling still shows the dissolve; the mark follows scroll directly with scene damping, completes its turn by 88% of story progress, stays fully opaque, and finishes centered inside the existing circle. The final copy is fully visible from 96% of text progress. A soft CSS shadow replaces the clipped WebGL contact-shadow plane. Ash samples are cached per layout and created on demand, capped at 2,200 particles per chapter; reading holds do not schedule particle draws.
-- Navigation is a compact centered dark-purple glass panel with rounded active highlights for pages and visible homepage sections. TRACE is a separate home link on the left; Report an Item is a separate desktop action on the right. The bar contains Discover, How It Works, Matching, and sign-in/account access. Mobile has the same links in a disclosure menu, including Report, with Escape and focus return.
+- Desktop hero uses an 895vh section: 675vh of story travel and 120vh of final hold. The 25% longer story travel reduces scroll sensitivity while text and mark continue to share direct story scroll progress. Each text fade additionally spans 25% more story progress. The mark retains scene damping, completes its turn by 88%, stays opaque, and ends centered. Final copy is fully visible at the start of the final hold. Ash samples are prepared during idle time per layout, capped at 1,200 particles per chapter and DPR 1.5; cached width removes per-particle layout reads. Reading holds do not schedule particle draws. Fast jumps may skip intermediate ash frames; real-device FPS remains unmeasured.
+- The desktop WebGL mark uses a CSS-composited 16px/3.2-second idle bounce that runs whenever scrolling has settled anywhere in the hero, including the top and the final hold, and pauses while scroll is moving (300ms settle delay). The bounce moves the whole hero canvas, so the dashed orbit ring bobs with the mark; an in-scene mark-only bob that kept the ring still was tried and reverted because it required a throttled Three.js render loop while at rest. Reduced-motion, mobile, and SVG fallback remain still. CSS composition avoids a continuous Three.js render loop for the idle effect.
+- Navigation is a compact centered dark-purple glass panel with rounded active highlights for pages and visible homepage sections. TRACE is a separate home link on the left; Report an Item is a separate desktop action on the right. The bar contains Discover, How It Works, Matching, and sign-in/account access. Mobile has the same links in a disclosure menu, including Report, with Escape and focus return. A slow violet passing light (`nav-sheen`, 6-second cycle, 4.5-second sweep) is clipped inside the glass panel and stays static under reduced motion.
+- Navigation now also links to Community and has a thin gradient divider underneath. Below 1,280px it uses the disclosure menu to accommodate account and sign-out actions. The later hero chapters remain open on the hero background with small outline icons, short hairlines, chapter numbers, and minimal supporting strokes. The user rejected card backgrounds; do not restore them. Both chapters retain existing ash timings and mark motion without continuous extra animation. The CTA watermark's static wrapper owns translation at 46% horizontal position while its inner span owns entrance scale/opacity, keeping the final E in view.
+
+Hero refinement (2026-11-07): glyph dust has roughly 15–20% farther drift/lift, a 12px scroll-driven curl, and a 50% longer normal particle travel window with softer opacity. Right-edge particles finish by the chapter boundary. Canvas padding is 200px; chapter timings, mark motion, 1,200-particle cap, and DPR cap are retained. At the user's request, a bounded time-based breeze keeps dust moving when scrolling pauses mid-fade. Text fading still follows scroll. Reading holds, completed transitions, hidden tabs, and unmount stop the animation loop; reduced-motion/mobile remain static. This replaces the previous no-draw rule for paused transitions only.
+
+Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use static decorative search rings, dotted item-tag paths, margin labels, and small cross marks. `SurroundingDetails` is aria-hidden and pointer-transparent; mobile reduces this to faint cropped rings. No extra animation or external assets are used.
 
 ### Not implemented or not production guarantees
 
-- No AWS infrastructure, API, database, real identity verification, shared sessions, or cross-device synchronization is implemented in this repository.
+
+- No authenticated HTTP API, server-authorized report/claim workflow, shared application records, or cross-device frontend synchronization is implemented. SPA OIDC sign-in is implemented and tested with a simulated provider; real AWS login/logout remains unverified. The manually created Cognito directory is the only AWS resource currently known to be provisioned; PostgreSQL schema/repository code remains local and is not connected to the browser demo or AWS.
 - Demo email separation is a UI/data-consistency feature, not authentication. Anyone can enter the demo admin email.
 - All browser state, including roles, private details, claims, and audit history, can be inspected or changed locally.
 - Client-side guards are not a security boundary and do not solve simultaneous requests from multiple devices.
-- A localStorage write failure is reported, but an in-memory mutation is not rolled back. Do not claim successful durable storage based solely on a toast.
-- Persisted-state validation currently checks the outer array structure and basic user fields, not every nested value.
+- localStorage remains browser-local and user-editable. Save-before-success does not provide cross-tab synchronization, simultaneous-browser conflict resolution, backups, or backend durability. Invalid nested records are preserved but have no repair/export UI yet. Persisted schemas validate shapes; date/reference consistency is not exhaustively reconciled. Items with unmigratable statuses still follow the existing drop policy.
+- Community permissions are local demo rules, not a production security boundary. Removed post bodies remain in browser storage; production retention, moderation audit, reporting/appeals, pagination, and backend operations are not implemented.
 - Matching has no trained ownership model, labeled evaluation dataset, image matching, or calibrated probability.
 - Notifications are in-app records only. There is no email or SMS delivery.
-- Lost and found reports do not yet have a durable confirmed-pair relationship. Returning a found item does not automatically close a corresponding lost report.
-- Private details are currently collected on lost reports. The admin panel looks for reference details on the claimed found item; a complete evidence/reference workflow is still needed.
+- The optional report link and reviewer evidence work in the demo, but the browser sends/stores private data locally without a security boundary. Real identity, restricted API responses, concurrent writes, reviewer permissions, and dispute/appeal/custody policies remain unfinished.
+- The demo exposes only one admin login. It cannot review its own claim; testing a separate reviewer currently requires domain fixtures until multiple real admin accounts exist.
+- `npm audit` reports an existing high-severity advisory [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) for locked Zod 3.25.76 (also present before the PostgreSQL change). The suggested fix is a breaking Zod 4 upgrade. The repository bounds report/claim inputs before parsing, but this is not a general remedy. Upgrade and test Zod and enforce HTTP body limits before accepting untrusted requests.
 
 ## 4. Repository map
 
@@ -72,8 +92,25 @@ TRACE is a lost-and-found application. Its intended workflow is:
 | --- | --- |
 | `src/App.tsx` | Routes, page loading/transitions, global layout |
 | `src/components/Navbar.tsx` | Floating glass navigation, separate brand/action, page/section selection, mobile disclosure |
-| `src/lib/types.ts` | Item, claim, user, notification, audit types; category/location lists |
-| `src/lib/store.tsx` | Demo identity, persistence, mutations, notifications, audit entries |
+| `src/lib/types.ts` | Item, claim, user, notification, audit types; category/location lists; re-exports contract statuses |
+| `src/lib/contract/` | Shared API contract: statuses + legacy mapping, error model, public/restricted DTO schemas, request/response schemas |
+| `src/lib/service/domain.ts` | Authoritative pure operations: claim/handoff/report rules, notifications/audit side effects, restricted reads, v1→v2 migration |
+| `src/lib/service/types.ts` | `TraceService` async interface for the future API |
+| `src/lib/cognito.tsx` | Environment-gated Cognito OIDC session, login return handling, managed-login logout; does not authorize demo mutations |
+| `src/lib/authNavigation.ts` | Local return-destination allowlist and Cognito logout URL builder |
+| `src/pages/AccountPage.tsx` | Account session display and cloud-route notices until authenticated APIs exist |
+| `scripts/auth-navigation-test.mjs` | Return-destination and logout URL unit tests |
+| `scripts/auth-browser-test.mjs` | Simulated OIDC browser flow, PKCE, session isolation, redirects, logout, expiry, responsive navigation |
+| `backend/postgres/001_initial.sql` | Initial PostgreSQL schema, constraints, indexes, and public report view |
+| `backend/postgres/repository.mjs` | Server-only PostgreSQL report/claim/review/handoff/notification operations |
+| `scripts/postgres-migrate.mjs` | Manually invoked, advisory-locked migration runner |
+| `scripts/postgres-test.mjs` | Local isolated PostgreSQL integration, access, rollback, and concurrency tests |
+| `docs/postgres-local.md` | PostgreSQL local setup, test safety, security limitations, and AWS follow-up |
+| `src/lib/store.tsx` | Demo identity, persistence (`trace_state_v2`), synchronous adapter over the domain operations, toasts |
+| `src/lib/persistence.ts` | Snapshot loading/save-before-success helpers, invalid-state protection, validated demo session loading |
+| `src/lib/scannerSession.ts` | Cancelable scanner lifecycle across asynchronous import/startup/stop |
+| `src/lib/community.ts` | Versioned community post schemas and actor-based create/remove rules |
+| `src/pages/CommunityPage.tsx` | Mandaluyong local Community Board, composer, search/filter, confirmed removal |
 | `src/lib/schemas.ts` | Report, claim, and sign-in form validation |
 | `src/lib/matching.ts` | Pure matching/ranking calculation |
 | `src/lib/demoData.ts` | Seed records and sample accounts |
@@ -88,13 +125,20 @@ TRACE is a lost-and-found application. Its intended workflow is:
 | `src/components/home/` | Homepage content; keep demo claims accurate |
 | `src/components/home/hero3d/` | Scroll-driven WebGL hero (R3F), pure timeline sampler, welded mark geometry, WebGL fallback gate |
 | `src/components/home/AshLayer.tsx` | Reversible scroll-linked text mask and glyph-sampled canvas fragments for all hero copy |
-| `src/components/home/useHeroProgress.ts` | Shared text phase ranges and demand-driven bounded catch-up for ash transitions |
+| `src/components/home/SurroundingDetails.tsx` | Static SVG and margin decorations for hero, process, and matching sections |
+| `src/components/home/ashTiming.ts` | Shared fade-edge and particle-phase calculations |
+| `src/components/home/useHeroProgress.ts` | Shared text phase ranges; the former catch-up hook was removed so text follows direct scroll |
 | `tailwind.config.js` | Shared four-color theme tokens (`accent`, `accentMid`, `accentLight`, ink/paper/mist/line/muted) |
 | `docs/hero-experience.md` | Hero storyboard, rendering and asset choices, fallback behavior, validation and limits |
 | `scripts/matching-test.mjs` | Matching behavior tests using Node's test runner |
+| `scripts/contract-test.mjs` | Domain/contract tests: isolation, conflicting decisions, public-field privacy, migration |
 | `scripts/consistency-test.mjs` | Playwright browser workflow checks |
+| `scripts/reliability-test.mjs` | Storage/session, scanner cancellation, and community authorization regressions |
+| `scripts/local-workflows-test.mjs` | Browser failure/retry, photo/camera lifecycle, community workflows, responsive screenshots in ignored `.local-checks/` |
+| `docs/backend-contract.md` | Phase B decisions: operations, access rules, status model, evidence workflow, error model |
 | `docs/aws-starter.md` | Small, staged AWS rollout guide |
 | `docs/aws-services.md` | First-version AWS inventory, purposes, request flow, cost assumptions, and deferred services |
+| `docs/aws-deployment-inventory.md` | Non-sensitive record of AWS resources actually created and their integration/cleanup status |
 | `docs/architecture.md` | Proposed larger AWS architecture; not deployed |
 
 ## 5. Rules for implementation
@@ -115,7 +159,7 @@ TRACE is a lost-and-found application. Its intended workflow is:
 - At most one approved claimant per found item. Enforce this atomically in the backend, including concurrent requests.
 - A handoff must reference an approved claim and record the actor, recipient/claim, timestamp, and required note.
 - Keep item status, claim status, timelines, notifications, and audit events consistent after every decision.
-- Existing item status `claim_under_review` currently means approved and awaiting handoff in the UI. Rename it to an explicit status such as `awaiting_handoff` with a migration before treating the model as a stable API contract.
+- Item status `claim_under_review` was renamed to `awaiting_handoff` with a v1→v2 storage migration; treat `awaiting_handoff` as the stable name in new code and contracts.
 - Canceled decision/handoff dialogs must clear their notes so a later decision cannot inherit another record's text.
 - Avoid broad resets of browser state. If persistence changes, add a deliberate version/migration path and explain limitations.
 
@@ -153,6 +197,8 @@ npm.cmd ci
 npm.cmd run dev -- --host 127.0.0.1 --port 5173
 npm.cmd run typecheck
 npm.cmd run test:matching
+npm.cmd run test:contract
+npm.cmd run test:reliability
 npm.cmd run test:hero-timeline
 npm.cmd run build
 npm.cmd run preview -- --host 127.0.0.1 --port 4173
@@ -162,6 +208,7 @@ With the preview server running, use a second shell:
 
 ```powershell
 npm.cmd run test:consistency
+npm.cmd run test:local-workflows
 git diff --check
 ```
 
@@ -172,9 +219,11 @@ git diff --check
 - Run the build and relevant checks for behavior changes. Add regression coverage for significant failures. Documentation-only changes need content/link review and a whitespace check, not a full browser run.
 - Stop temporary preview/test processes when finished unless the user wants them kept running.
 
-Latest recorded verification, 2026-11-04: production build passed (HeroScene chunk ~895 kB is the known Three.js warning); eight hero-timeline tests and 32 browser checks passed during the glass navigation/final-hold pass. Desktop/tablet/mobile header screenshots and hero shadow/final-state screenshots were reviewed. Fast text catch-up, fixed stage placement through the end hold, section highlights, and mobile Escape/focus return were checked. The browser workflow suite ran before the last visual shadow/fallback adjustment. This is a historical result, not a claim that future edits are verified.
+Latest recorded verification, 2026-11-07: PostgreSQL 18.3 ran in an isolated local test cluster; migration applied successfully and repeat application was recognized, and PostgreSQL integration tests passed 8/8 including competing approvals, independent database constraints, scoped private evidence and community matching, rollback, linked return, and concurrent/idempotent handoff retries. Production build/typecheck, contract tests 21/21, reliability tests 11/11, matching 4/4, hero-timeline tests 9/9, and browser workflows 32/32 passed after adding `pg@8.16.3`. After adding the Cognito SPA boundary, typecheck and production build passed and the local `/signin` HTTP route returned 200; an actual Cognito redirect, invitation email, and signed-in browser session remain unverified. The targeted mobile linked-claim workflow and local workflows 11/11 passed earlier in this session. The 2026-11-07 animation pass (settle-anywhere CSS idle bounce and navbar violet passing light) passed typecheck, production build, a 6/6 idle-bounce browser check, a 6/6 sheen browser check, hero-timeline 10/10, consistency 32/32, and `git diff --check`; the Cognito-enabled local build was restored afterwards. `npm audit` reported the existing high-severity Zod advisory described above. PostgreSQL is not connected to the browser or a verified API. Actual-device camera behavior and FPS remain unmeasured.
 
 ## 7. Ordered work remaining
+
+Auth verification update, 2026-11-08: build/typecheck, `node --test scripts/auth-navigation-test.mjs` (2/2), reliability (11/11), and `node scripts/auth-browser-test.mjs` passed. The browser suite uses a simulated OIDC provider against the configured dev server, without AWS credentials; desktop/mobile screenshots were inspected. `git diff --check` passed. Real invited-user AWS login/logout remains unverified. The broader suites recorded above were not rerun for this account-navigation change.
 
 Statuses: `DONE` means verified; `TODO` means unimplemented; `INVESTIGATE` means inspect/reproduce before choosing a fix. Work in this order unless the user changes priorities.
 
@@ -189,18 +238,21 @@ Statuses: `DONE` means verified; `TODO` means unimplemented; `INVESTIGATE` means
   - This workspace was populated from that local checkout at commit `3d22805`; latest GitHub HEAD was not verified through a successful fetch.
   - `.git` writes and direct GitHub network access were restricted in the earlier environment. Recheck capabilities; do not treat these as permanent repository defects or bypass restrictions.
   - Acceptance: correct remote, successful fetch, upstream differences reviewed, local work preserved, and explicitly authorized changes pushed without force-overwriting remote work.
-- [INVESTIGATE] Exercise corrupt nested storage records, storage exhaustion, legacy sessions created when all emails used `u_demo`, and reload behavior after failed persistence.
-- [INVESTIGATE] Test closing the camera dialog during startup and navigating away while scanning; ensure no camera stream survives closure/unmount.
-- [INVESTIGATE] Test submitting/navigating during image processing, multiple concurrent selections, unsupported browser image APIs, and small-screen forms.
+- [DONE] Guard corrupt nested storage records, failed writes, and ambiguous legacy sessions. Acceptance: malformed snapshots remain unchanged; unsuccessful mutations do not publish success or change memory; retry and reload retain one saved report; legacy sign-out cannot resurrect the v1 session. Schema/date/reference reconciliation and recovery/export UI remain follow-up work.
+- [DONE] Repair camera closure during import/startup and SPA unmount. Unit and synthetic-camera browser checks verify eventual tracks stop and stale decode callbacks are ignored. The scanner keeps its imperative host attached offscreen until cleanup and waits for playback to settle. Actual-device permission dialogs and camera indicators remain a manual follow-up.
+- [DONE] Guard submission/navigation during photo processing and prevent concurrent file batches. Acceptance: pending photos disable Continue/Submit and selection/removal; leaving does not publish a report; image-element fallback produces a JPEG when `createImageBitmap` is absent. Physical mobile browser APIs still need verification.
+- [DONE] Add a local Mandaluyong Community Board with posts/announcements only. Acceptance: guest browsing, member posting, admin-only announcements, author/admin confirmed removal, search, reload, write-failure draft preservation, and desktop/tablet/mobile layout checks. No AWS/shared posts or official partnerships are implied.
 - [TODO] Pin the supported Node version and automate build/typecheck/matching checks in CI. Add browser checks with a known Chrome/runtime setup.
 
 ### B. Define the backend contract before provisioning
 
-- [TODO] Extract demo access behind a service interface so pages can use either demo or API data without duplicating business rules.
-- [TODO] Define public/restricted types and validated request/response schemas. Keep storage types separate from API responses.
-- [TODO] Resolve the report relationship and evidence workflow: which lost report a found report may match, what evidence the reviewer can access, and how both reports are closed after a return.
-- [TODO] Make status names explicit and version the migration from current browser records. Existing demo data should not be uploaded automatically.
-- [TODO] Specify API errors for unauthorized, forbidden, not found, validation failure, conflict, and retryable service failure. UI success must follow confirmed persistence.
+- [TODO] Finish routing demo access through the async service interface so pages can switch adapters. `TraceService` is declared and domain rules are extracted/tested, but pages still use the synchronous store and dashboard matching directly.
+- [DONE] Define public/restricted types and validated request/response schemas. Contract tests verify public-field privacy and two-user isolation; storage remains separate from public responses.
+- [TODO] Finish the production report relationship and evidence workflow. The local demo supports optional claimant-owned active report links, finder/claimant references, self-review denial, one approved claim per linked lost report, and closure of linked reports and competing claims. Backend atomic enforcement, reviewer access, custody, disputes, and appeals remain to be designed and verified with real accounts.
+- [DONE] Make status names explicit and version the v1→v2 browser migration. Existing demo data must not be uploaded automatically; migration tests pass.
+- [DONE] Specify the six API error codes and HTTP mappings. Contract tests pass; local demo success now follows confirmed storage. Server persistence confirmation remains part of backend acceptance.
+- [DONE] Add a local PostgreSQL migration and server-only transactional repository foundation. Acceptance: a dedicated PostgreSQL test database verifies public-field separation, reviewer/community scope, rollback, one approved claim per found/lost report, and idempotent concurrent handoffs. This does not complete HTTP/API/auth integration or production database privileges.
+- [TODO] Before exposing untrusted HTTP requests, upgrade the existing vulnerable Zod dependency compatibly, impose request-size limits before JSON/schema parsing, and rerun dependency security checks.
 
 Proposed minimum API (design to confirm during implementation):
 
@@ -221,14 +273,15 @@ Acceptance for B: typed contracts and domain tests exist, including two-user iso
 ### C. Build the AWS backend
 
 - [DONE] Document the first-version AWS service inventory and distinguish required services from optional expansions in `docs/aws-services.md`. This completes service planning only; no resources are deployed.
-- [TODO] Check the actual account plan, remaining credits, expiry, region availability, and current service prices. Do not promise a zero bill from generic Free Tier limits.
+- [TODO] Complete the account cost review: the account owner confirmed a Free plan, remaining credits/expiry, and Singapore region selection on 2026-11-07. Confirm each proposed service is available under that plan and record a region-specific estimate before provisioning RDS or other chargeable resources. Do not promise a zero bill from generic Free Tier limits.
 - [TODO] Set budget notifications and usage/log retention limits before provisioning. Budget alerts are not a hard spending cap.
 - [TODO] Add reproducible infrastructure configuration. Record chosen region and resource roles in project docs without credentials or private account data.
-- [TODO] Integrate Cognito for verified sign-in and admin groups; remove demo login shortcuts from production mode. Never grant admin from an email entered in the UI.
+- [DONE] Connect SPA navigation and account access to the optional Cognito session. Acceptance: simulated browser checks verify PKCE, intended-page return, old demo-session isolation, logout, expired-session handling, and mobile/tablet navigation. Homepage/browsing remain public. Demo shortcuts are disabled in Cognito mode. This completion covers client behavior only.
+- [TODO] Complete Cognito integration: verify invited-user login/logout against AWS, confirm callback/logout allowlists, and add an API that verifies tokens and derives identity/roles server-side. Replace cloud-route unavailable notices only when authenticated API adapters exist. Never grant admin from an email entered in the UI.
 - [TODO] Implement API Gateway HTTP API and Lambda, with token verification and resource-level authorization in handlers.
-- [TODO] Model DynamoDB access patterns and indexes for public browsing, owner reports, item claims, review queue, and user notifications. Avoid whole-table scans as the normal query strategy.
+- [TODO] Finalize PostgreSQL query/access patterns, index coverage, cursor pagination, least-privilege roles, TLS, connections, backups, and recovery. Initial relational tables/indexes exist locally; review production queries and RDS compatibility before deployment.
 - [TODO] Use conditional/transactional writes and idempotency for claim approval and handoff. Record audit events with server identity and time; restrict update/delete access.
-- [TODO] Store photos in private S3 with constrained uploads, an authorized read strategy, and cleanup of abandoned uploads. Keep image data out of DynamoDB and localStorage in production.
+- [TODO] Store photos in private S3 with constrained uploads, an authorized read strategy, and cleanup of abandoned uploads. Keep image data out of PostgreSQL and localStorage in production.
 - [TODO] Move ranking to the backend, bounded by candidate retrieval. Keep results advisory and exclude unavailable/fulfilled candidates according to the finalized status model.
 
 Acceptance for C: two real accounts on separate browsers share reports but cannot read each other's restricted data; non-admin review requests are denied; concurrent approvals cannot produce two winners; retries do not duplicate handoffs; data survives reload/device changes; uploads obey access and size rules.
@@ -253,6 +306,66 @@ Acceptance for D: build is reproducible from GitHub; deep links and login redire
 Acceptance for E: documented dataset source and split, reproducible evaluation, measured results with limits, and no claim that ranking proves ownership.
 
 ## 8. Major-change history
+
+### 2026-11-08 — public landing page and Cognito account navigation
+
+Kept the homepage public and connected Sign In / My Account / Sign Out to the OIDC session. Added validated return destinations, managed-login logout, account status, and sign-in gates for report/claim/dashboard/admin routes. Those routes explain that online operations remain unavailable until the API exists. Old demo sessions and demo sign-in shortcuts are ignored in Cognito mode; community remains read-only. The disclosure-menu breakpoint is now 1,280px to fit the account actions. Updated README and AWS inventory/starter/services/architecture docs. Verification: build/typecheck passed (existing large HeroScene warning), auth-navigation 2/2 and reliability 11/11 passed; simulated OIDC browser flow verified PKCE, intended-page return, logout, old-session isolation, invalid redirects, session expiry, and mobile/tablet layout. Desktop/mobile screenshots were inspected. The first browser run failed due to an ambiguous Sign In locator also matching the footer; scoping it to the header fixed the test, and subsequent runs passed. No cloud settings were changed. Real AWS invited-user login/logout and allowed sign-out URLs remain unverified; no authenticated API or shared persistence exists.
+
+### 2026-11-07 — settle-anywhere hero bounce and navbar violet sheen
+
+The desktop WebGL mark's CSS idle bounce now resumes whenever scrolling settles anywhere in the hero (previously top-only) and pauses while scroll moves, using a 300ms settle delay on both story and raw progress values. The floating glass navigation gained a slow violet passing light (`nav-sheen`, 6-second cycle, clipped inside the panel, static under reduced motion). An in-scene mark-only bob that kept the dashed orbit ring still was implemented and then reverted at the user's request because it required a throttled Three.js render loop while at rest; the bounce therefore moves the whole canvas, ring included. Verification: typecheck, production build, idle-bounce browser check 6/6, sheen browser check 6/6, hero-timeline 10/10, consistency 32/32, and `git diff --check` clean; the Cognito-enabled local build was restored afterwards. Real-device FPS remains unmeasured.
+
+### 2026-11-07 — homepage surrounding details
+
+Added a shared decorative component with cropped search rings, dotted item-tag routes, cross marks, and vertical Search/Connect/Return labels around three homepage sections. These fill empty margins using existing colors without enclosing hero chapters in cards. Decorations are static, aria-hidden, pointer-transparent, and clipped within their sections; mobile hides the labels, trails, and crosses. Build/typecheck passed with the known HeroScene size warning. Desktop/mobile production screenshots were inspected; browser checks passed for no horizontal overflow, three decorative layers, click-through styling, and no page errors. Reduced-motion screenshots confirm static decoration; no additional animation was introduced. README and hero notes updated. No AWS changes.
+
+### 2026-11-07 — floating dust during paused fades
+
+Added gentle time-based particle offsets during active fades so a pause in scrolling does not freeze the dust. The text mask and opacity remain scroll-controlled. A single frame loop per active canvas stops at reading holds, transition boundaries, hidden tabs, and unmount. Updated README and hero notes to replace the earlier paused-transition performance rule. Build/typecheck and ten hero timeline tests passed; the existing large HeroScene bundle warning remains. Production-browser checks confirmed changing particle images with a fixed text mask during paused intro/matching exits and both entrances, reverse scrolling, no draws at the matching reading hold or story endpoints, static mobile/reduced-motion fallbacks, and no page errors. Hidden-tab/unmount cleanup was inspected in code, not simulated in this browser check. Real-device FPS remains unmeasured.
+
+### 2026-11-07 — gentler glyph dust travel
+
+Lengthened particle travel from 0.28 to 0.42 of the mask-edge range, increased drift/lift modestly, and added a small reversible sideways curl plus a softer opacity envelope. Rightmost glyphs use a bounded window to settle before the chapter ends. This addresses rushed dust without changing chapter durations or the direct scroll relationship. Updated the hero notes and README. Build/typecheck passed with the existing large HeroScene warning; hero tests passed 10/10. The first new boundary assertion failed only on floating-point roundoff and was corrected to use a tolerance. Production-browser checks verified particles during intro/matching exits and both entrances, reverse scrolling, cleared canvases at the endpoints, zero idle draws, mobile/reduced-motion fallbacks, and no page errors. Desktop screenshots were visually inspected. Real-device FPS remains unmeasured; fast scroll jumps may still skip intermediate frames. No AWS changes.
+
+### 2026-11-07 — Cognito-aware SPA sign-in boundary
+
+Added `oidc-client-ts` and `react-oidc-context` and an environment-gated OIDC authorization-code provider for the React SPA. When `VITE_COGNITO_USER_POOL_ID` and `VITE_COGNITO_CLIENT_ID` are supplied only through ignored local environment settings, `/signin` redirects to Cognito and returns to the app with a verified OIDC session. The sign-in screen clearly states that the local browser demo remains authoritative until a verified API is implemented; it does not map Cognito groups to local admin privileges or pass tokens to a backend. Added `.env.example` with placeholders only. Typecheck and production build passed; the existing large HeroScene chunk warning remains. `npm install` continued to report the pre-existing high-severity Zod advisory, which must be resolved before an untrusted HTTP API is exposed.
+
+### 2026-11-07 — Cognito directory provisioned for controlled testing
+
+The account owner selected Asia Pacific (Singapore), `ap-southeast-1`, as TRACE's default Region, checked the account's Free plan credits and expiry in AWS Billing, and manually created a Cognito user directory with an `admin` group and one controlled test user in that group. This is the first known AWS resource for TRACE. It has no application integration, production callback, API, database, photo bucket, infrastructure-as-code definition, or end-to-end verification. No resource identifiers, account identifiers, credentials, or credit amounts were recorded in the repository. Documentation was updated to remove the inaccurate claim that no AWS resources exist; no application code or automated validation changed.
+
+### 2026-11-05 — PostgreSQL local foundation
+
+At the user's direction, selected PostgreSQL instead of the earlier DynamoDB proposal. Added a versioned SQL schema with public/private separation, membership-scoped reviewer checks, relational claim/recipient links, partial unique indexes for approved claims, and idempotent handoffs. Added a server-only `pg` repository using serializable transactions, a review queue, bounded public-field matching, migration, and isolated-database integration tests. PostgreSQL 18.3 test cluster was isolated from the existing service; migration applied and rerun safely, and eight real database integration tests passed including concurrent approvals and retries. Node 24.15.0 build/typecheck, 21 contract tests, and 11 reliability tests passed. `npm audit` identified an existing high-severity Zod 3 advisory; do not expose an API until its compatible upgrade and request limits are addressed. The repository is not an HTTP API and the frontend still uses localStorage; authentication, database roles, production credentials/TLS/backups, remaining operations, API adapter, and AWS provisioning are outstanding. Updated README and AWS/architecture docs; the old diagram's DynamoDB labels are explicitly marked outdated.
+
+### 2026-11-05 — linked claims, evidence, and reviewer conflicts
+
+Added optional active lost-report selection to the claim form and private finder references to found reports, allowing the demo reviewer to compare finder and linked claimant details. Domain rules reject self-review, invalid/stale linked reports, and conflicting approvals for the same lost report. Handoff closes other pending claims using the returned lost report, notifies claimants, and restores alternate found items without other open claims. Claim fields reject whitespace-only answers, and claim dialogs scroll within small screens. Contract tests passed 21/21, matching 4/4, reliability 11/11, existing browser workflows 32/32, and a targeted mobile browser workflow verified evidence, review, and closure of both reports. Build/typecheck passed with the known 3D chunk warning. Browser-local permissions and writes are not secure or cross-device atomic; only one demo admin exists, and AWS/backend implementation remains outstanding.
+
+### 2026-11-05 — lower-sensitivity text fades
+
+Widened each text-fade range by 25% of its previous story-progress span so it takes more scrolling, while preserving direct scroll response, synchronized particles, a matching reading hold, and the final 120vh hold. Shifted the intro exit and chapter transition positions to fit the longer fades; final copy finishes at the beginning of the final hold. Production build and nine hero timeline tests passed. Production-browser checks confirmed particles during both transitions, forward/reverse behavior, final hold, idle bounce, and reduced-motion/mobile behavior. Real-device FPS remains unmeasured.
+
+### 2026-11-05 — reduced hero scroll sensitivity
+
+Increased desktop story travel from 540vh to 675vh (25%) for a less sensitive scroll response. The section is now 895vh including the unchanged 120vh final hold and viewport height. Text, particles, and mark continue to use direct synchronized progress. Production build, nine timeline tests, 32 browser workflow checks, and production-browser forward/reverse/hold and reduced-motion checks passed. Real-device FPS remains unmeasured.
+
+### 2026-11-05 — restored original hero scroll distance
+
+Restored 540vh of story travel and the 120vh final hold (760vh section) at the user's request. Kept direct scroll synchronization, idle glyph sampling, reduced particle/DPR limits, and the top-of-page mark bounce. Synchronized particles with the same eased mask edge and vertical text offset after the user observed late scattering in chapters two and three. Production build and nine timeline tests passed; browser screenshots showed visible particles during matching and review fades and confirmed reverse scrolling, bounce, reduced motion, and mobile behavior. Fast scroll jumps can skip particle frames; real-device FPS remains unmeasured.
+
+### 2026-11-05 — slower story fades and idle mark bounce
+
+Extended story travel from 540vh to 810vh so fades and the mark's turn take 50% more scrolling without introducing delayed text catch-up; retained the 120vh final hold. Added a noticeable 16px, 3.2-second CSS-composited bounce to the desktop WebGL mark at the top; scroll progress stops it, and reduced motion, mobile and fallback remain static. Build and eight hero timeline tests passed. Browser checks measured at least 14px of bounce, confirmed it stops during scroll and stays still for reduced motion/mobile, and checked chapter sync and watermark bounds. Actual-device FPS remains unmeasured.
+
+### 2026-11-05 — lighter hero accents, synchronized fades, and full watermark
+
+At the user's request, replaced the initial card-like chapter backgrounds with small outline icons, hairlines, chapter numbers, and minimal supporting strokes. Added a thin navbar divider. Corrected the CTA watermark's conflicting CSS/Framer transforms and positioned it slightly left so all of TRACE is visible. Removed the artificial text catch-up loop: chapter masks now use the same direct story progress as the mark. Moved glyph sampling into idle time, reduced the particle cap from 2,200 to 1,200 and canvas DPR to 1.5, and cached width outside the particle loop. Build and eight timeline tests passed; screenshots and direct/reverse scroll checks verified chapter readability, mobile fallback, and full watermark bounds. Final 32 browser workflow checks passed. Fast jumps may skip intermediate ash frames; real-device FPS remains unmeasured.
+
+### 2026-11-05 — local reliability and Mandaluyong Community Board
+
+Implemented save-before-success for demo mutations, deep structural validation of saved records, preserved corrupt payloads with writes blocked, validated legacy sessions, and prevented old sessions reappearing after sign-out. Photo processing now blocks navigation/submission within the wizard, ignores late unmounted results, supports a decoder fallback, and uses honest empty-photo placeholders. Scanner teardown handles pending imports/permission/startup and unmount; browser tests found a media-playback race that required waiting for playback and retaining the imperative host until shutdown. Added a local Community Board with member posts, admin announcements, search/filter, author/admin soft removal, and storage-failure draft preservation. User confirmed posts and announcements only. Navigation includes Community; tablet disclosure and mobile toast width avoid crowding/clipping. Build/typecheck, 39 unit/domain/timeline checks, 32 existing browser checks, and 11 new local browser checks passed. README/backend/AWS notes updated. No AWS resources, real authentication, official office integration, comments, or shared community persistence were added; actual-device camera verification remains open.
 
 ### 2026-11-04 — glass navigation and balanced header
 

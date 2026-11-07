@@ -2,11 +2,15 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import {
+  type CreateReportRequest,
+  type SubmitClaimRequest,
+} from './contract'
 import {
   DEMO_ADMIN,
   DEMO_USER,
@@ -15,14 +19,26 @@ import {
   SEED_ITEMS,
   SEED_NOTIFICATIONS,
 } from './demoData'
-import type { AuditEntry, Claim, Item, Notification, User } from './types'
+import {
+  createReport,
+  markAllNotificationsRead as markAllNotificationsReadOp,
+  recordHandoff,
+  reviewClaim,
+  submitClaim as submitClaimOp,
+  type TraceData,
+} from './service/domain'
+import type { AuditEntry, Claim, ClaimStatus, Item, Notification, User } from './types'
 import { uid } from './utils'
+import { cognitoEnabled } from './cognito'
+import { loadDemoData, loadDemoUser, saveDemoData, USER_STORAGE_KEY } from './persistence'
 
 interface Toast {
   id: string
   message: string
   type: 'success' | 'error' | 'info'
 }
+
+type ReviewableClaimStatus = Exclude<ClaimStatus, 'pending'>
 
 interface AppState {
   user: User | null
@@ -31,11 +47,11 @@ interface AppState {
   notifications: Notification[]
   audit: AuditEntry[]
   toasts: Toast[]
-  signIn: (email: string, name?: string) => void
+  signIn: (email: string, name?: string) => boolean
   signOut: () => void
-  addItem: (item: Omit<Item, 'id' | 'createdAt' | 'timeline' | 'ownerId' | 'ownerName'> & { privateDetails?: string }) => string | null
-  submitClaim: (claim: Omit<Claim, 'id' | 'createdAt' | 'updatedAt' | 'claimantId' | 'claimantName' | 'status'>) => boolean
-  updateClaimStatus: (claimId: string, status: Claim['status'], note?: string) => boolean
+  addItem: (draft: CreateReportRequest) => string | null
+  submitClaim: (draft: SubmitClaimRequest) => boolean
+  updateClaimStatus: (claimId: string, status: ReviewableClaimStatus, note?: string) => boolean
   markReturned: (itemId: string, claimId: string, note: string) => boolean
   markAllNotificationsRead: () => void
   toast: (message: string, type?: Toast['type']) => void
@@ -47,75 +63,33 @@ interface AppState {
 
 const StoreContext = createContext<AppState | null>(null)
 
-const STORAGE_KEY = 'trace_state_v1'
-
-interface Persisted {
-  items: Item[]
-  claims: Claim[]
-  notifications: Notification[]
-  audit: AuditEntry[]
-}
-
-function load(): Persisted {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const saved = JSON.parse(raw) as Persisted
-      if (Array.isArray(saved.items) && Array.isArray(saved.claims) &&
-        Array.isArray(saved.notifications) && Array.isArray(saved.audit)) return saved
-    }
-  } catch {
-    /* fall through to seeds */
-  }
-  return {
+function load() {
+  const seeds = {
     items: SEED_ITEMS,
     claims: SEED_CLAIMS,
     notifications: SEED_NOTIFICATIONS,
     audit: SEED_AUDIT,
   }
+  return loadDemoData({ getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, seeds)
+}
+
+function loadUser(): User | null {
+  if (cognitoEnabled) return null
+  try {
+    return loadDemoUser(localStorage)
+  } catch {
+    return null
+  }
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const initial = useMemo(load, [])
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const raw = localStorage.getItem(`${STORAGE_KEY}_user`)
-      if (!raw) return null
-      const saved = JSON.parse(raw) as User
-      return saved && typeof saved.id === 'string' && typeof saved.email === 'string' &&
-        (saved.role === 'user' || saved.role === 'admin') ? saved : null
-    } catch {
-      return null
-    }
-  })
-  const [items, setItems] = useState<Item[]>(initial.items)
-  const [claims, setClaims] = useState<Claim[]>(initial.claims)
-  const [notifications, setNotifications] = useState<Notification[]>(initial.notifications)
-  const [audit, setAudit] = useState<AuditEntry[]>(initial.audit)
-  const [toasts, setToasts] = useState<Toast[]>([])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, claims, notifications, audit }))
-    } catch {
-      setToasts((current) => current.some((entry) => entry.id === 'storage-error') ? current : [
-        ...current,
-        { id: 'storage-error', message: 'Browser storage is full. Recent changes may not be saved.', type: 'error' },
-      ])
-    }
-  }, [items, claims, notifications, audit])
-
-  useEffect(() => {
-    try {
-      if (user) localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(user))
-      else localStorage.removeItem(`${STORAGE_KEY}_user`)
-    } catch {
-      setToasts((current) => current.some((entry) => entry.id === 'storage-error') ? current : [
-        ...current,
-        { id: 'storage-error', message: 'Browser storage is unavailable. Your session may not persist.', type: 'error' },
-      ])
-    }
-  }, [user])
+  const [loaded] = useState(load)
+  const [data, setData] = useState<TraceData>(loaded.data)
+  const dataRef = useRef(data)
+  const [user, setUser] = useState<User | null>(loadUser)
+  const [toasts, setToasts] = useState<Toast[]>(loaded.error
+    ? [{ id: 'storage-error', message: loaded.error, type: 'error' }]
+    : [])
 
   const toast = useCallback((message: string, type: Toast['type'] = 'success') => {
     const id = uid('toast')
@@ -127,18 +101,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setToasts((t) => t.filter((x) => x.id !== id))
   }, [])
 
-  const logAudit = useCallback(
-    (actor: string, action: string, target: string, detail?: string) => {
-      setAudit((a) => [
-        { id: uid('audit'), actor, action, target, timestamp: new Date().toISOString(), detail },
-        ...a,
-      ])
-    },
-    [],
-  )
+  const commit = useCallback((nextData: TraceData) => {
+    if (loaded.error) {
+      toast(loaded.error, 'error')
+      return false
+    }
+    try {
+      if (!saveDemoData(localStorage, nextData)) throw new Error('Storage unavailable')
+    } catch {
+      toast('Changes were not saved. Browser storage is full or unavailable. Free space and try again.', 'error')
+      return false
+    }
+    dataRef.current = nextData
+    setData(nextData)
+    return true
+  }, [loaded.error, toast])
 
   const signIn = useCallback(
     (email: string, name?: string) => {
+      if (cognitoEnabled) return false
       const normalizedEmail = email.trim().toLowerCase()
       const isAdmin = normalizedEmail === DEMO_ADMIN.email
       const u: User = isAdmin
@@ -151,279 +132,132 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               name: name?.trim() || normalizedEmail.split('@')[0],
               role: 'user',
             }
+      try {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u))
+      } catch {
+        toast('Could not save your demo session. Check browser storage and try again.', 'error')
+        return false
+      }
       setUser(u)
       toast(isAdmin ? 'Signed in as administrator' : `Welcome back, ${u.name}`)
+      return true
     },
     [toast],
   )
 
   const signOut = useCallback(() => {
+    try {
+      // A tombstone prevents a legacy session from reappearing on reload.
+      localStorage.setItem(USER_STORAGE_KEY, 'null')
+    } catch {
+      toast('Could not save sign-out. Close this browser session or clear its site data.', 'error')
+      setUser(null)
+      return
+    }
     setUser(null)
     toast('Signed out', 'info')
   }, [toast])
 
-  const addItem: AppState['addItem'] = useCallback(
-    (draft) => {
+  const addItem = useCallback(
+    (draft: CreateReportRequest): string | null => {
       if (!user) {
         toast('Sign in to submit a report', 'error')
         return null
       }
-      const id = uid('item')
-      const item: Item = {
-        ...draft,
-        id,
-        ownerId: user.id,
-        ownerName: user.name,
-        createdAt: new Date().toISOString(),
-        timeline: [
-          {
-            id: uid('tl'),
-            label: draft.type === 'lost' ? 'Reported lost' : 'Reported found',
-            description: 'Report submitted',
-            date: new Date().toISOString(),
-            done: true,
-          },
-          {
-            id: uid('tl'),
-            label: draft.type === 'lost' ? 'Matching in progress' : 'Listed publicly',
-            description: draft.type === 'lost' ? 'Possible matches will surface here' : 'Visible on Discover',
-            date: new Date().toISOString(),
-            done: draft.type === 'found',
-          },
-          {
-            id: uid('tl'),
-            label: draft.type === 'lost' ? 'Match found' : 'Awaiting claim',
-            description: draft.type === 'lost' ? 'Awaiting verification' : 'No claims yet',
-            date: new Date().toISOString(),
-            done: false,
-          },
-          {
-            id: uid('tl'),
-            label: draft.type === 'lost' ? 'Returned' : 'Verified handoff',
-            description: 'Pending verification',
-            date: new Date().toISOString(),
-            done: false,
-          },
-        ],
+      const outcome = createReport(dataRef.current, user, draft)
+      if (!outcome.result.ok) {
+        toast(outcome.result.error.message, 'error')
+        return null
       }
-      setItems((prev) => [item, ...prev])
-      logAudit(user.name, 'item.reported', item.title, `${item.type} report created`)
+      if (!commit(outcome.data)) return null
       toast(draft.type === 'lost' ? 'Lost item report submitted' : 'Found item report submitted')
-      return id
+      return outcome.result.value
     },
-    [user, logAudit, toast],
+    [user, commit, toast],
   )
 
-  const submitClaim: AppState['submitClaim'] = useCallback(
-    (draft) => {
-      const item = items.find((candidate) => candidate.id === draft.itemId)
-      if (!user || !item || item.type !== 'found' || item.status === 'returned' ||
-        item.ownerId === user.id || claims.some((claim) => claim.itemId === item.id &&
-          (claim.claimantId === user.id || claim.status === 'approved'))) {
-        toast('This item is not available for a new claim', 'error')
+  const submitClaim = useCallback(
+    (draft: SubmitClaimRequest): boolean => {
+      if (!user) {
+        toast('Sign in to submit a claim', 'error')
         return false
       }
-      const claim: Claim = {
-        ...draft,
-        id: uid('claim'),
-        itemTitle: item.title,
-        claimantId: user.id,
-        claimantName: user.name,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const outcome = submitClaimOp(dataRef.current, user, draft)
+      if (!outcome.result.ok) {
+        toast(outcome.result.error.message, 'error')
+        return false
       }
-      setClaims((prev) => [claim, ...prev])
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === draft.itemId
-            ? {
-                ...i,
-                status: 'claim_pending',
-                timeline: i.timeline.map((t, idx) =>
-                  idx === 2
-                    ? { ...t, label: 'Claim submitted', description: 'Awaiting review', done: true }
-                    : t,
-                ),
-              }
-            : i,
-        ),
-      )
-      setNotifications((prev) => [
-        {
-          id: uid('n'),
-          userId: user.id,
-          title: 'Claim submitted',
-          message: `Your claim for “${item.title}” has been received.`,
-          read: false,
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ])
-      logAudit(user.name, 'claim.submitted', item.title, 'Ownership questions answered')
+      if (!commit(outcome.data)) return false
       toast('Claim submitted for review')
       return true
     },
-    [user, items, claims, logAudit, toast],
+    [user, commit, toast],
   )
 
-  const updateClaimStatus: AppState['updateClaimStatus'] = useCallback(
-    (claimId, status, note) => {
-      const claim = claims.find((candidate) => candidate.id === claimId)
-      const item = items.find((candidate) => candidate.id === claim?.itemId)
-      const allowedStatus = status === 'under_review' || status === 'approved' || status === 'rejected'
-      if (user?.role !== 'admin' || !claim || !item || item.status === 'returned' ||
-        !allowedStatus || (claim.status !== 'pending' && claim.status !== 'under_review') ||
-        claim.status === status ||
-        (status === 'approved' && claims.some((other) => other.itemId === item.id && other.id !== claimId && other.status === 'approved'))) {
+  const updateClaimStatus = useCallback(
+    (claimId: string, status: ReviewableClaimStatus, note?: string): boolean => {
+      if (!user) {
         toast('This claim cannot be updated', 'error')
         return false
       }
-      setClaims((prev) =>
-        prev.map((c) =>
-          c.id === claimId
-            ? { ...c, status, updatedAt: new Date().toISOString(), adminNote: note ?? c.adminNote }
-            : c,
-        ),
-      )
-      if (claim) {
-        setNotifications((prev) => [
-          {
-            id: uid('n'),
-            userId: claim.claimantId,
-            title: status === 'approved' ? 'Claim approved' : status === 'rejected' ? 'Claim declined' : 'Claim in review',
-            message:
-              status === 'approved'
-                ? `Your claim for “${claim.itemTitle}” was approved. Arrange a verified handoff.`
-                : status === 'rejected'
-                  ? `Your claim for “${claim.itemTitle}” was not approved.`
-                  : `Your claim for “${claim.itemTitle}” is under review.`,
-            read: false,
-            createdAt: new Date().toISOString(),
-          },
-          ...prev,
-        ])
-        logAudit(user?.name ?? 'Admin', `claim.${status}`, claim.itemTitle, note)
-        if (status === 'approved') {
-          setItems((prev) =>
-            prev.map((i) =>
-              i.id === claim.itemId
-                ? {
-                    ...i,
-                    status: 'claim_under_review',
-                    timeline: i.timeline.map((t, idx) =>
-                      idx === 2 ? { ...t, label: 'Claim approved', description: 'Arrange verified handoff', done: true } : t,
-                    ),
-                  }
-                : i,
-            ),
-          )
-        }
-        if (status === 'rejected') {
-          const otherOpenClaims = claims.some(
-            (c) =>
-              c.itemId === claim.itemId &&
-              c.id !== claim.id &&
-              (c.status === 'pending' || c.status === 'under_review' || c.status === 'approved'),
-          )
-          if (!otherOpenClaims) {
-            setItems((prev) =>
-              prev.map((i) =>
-                i.id === claim.itemId && (i.status === 'claim_pending' || i.status === 'claim_under_review')
-                  ? {
-                      ...i,
-                      status: 'unclaimed',
-                      timeline: i.timeline.map((t, idx) =>
-                        idx === 2
-                          ? { ...t, label: 'Awaiting claim', description: 'No open claims', done: false }
-                          : t,
-                      ),
-                    }
-                  : i,
-              ),
-            )
-          }
-        }
+      const outcome = reviewClaim(dataRef.current, user, claimId, { decision: status, note })
+      if (!outcome.result.ok) {
+        toast(outcome.result.error.message, 'error')
+        return false
       }
+      if (!commit(outcome.data)) return false
       toast(
         status === 'approved' ? 'Claim approved' : status === 'rejected' ? 'Claim declined' : 'Claim moved to review',
       )
       return true
     },
-    [claims, items, user, logAudit, toast],
+    [user, commit, toast],
   )
 
-  const markReturned: AppState['markReturned'] = useCallback(
-    (itemId, claimId, note) => {
-      const item = items.find((candidate) => candidate.id === itemId)
-      const claim = claims.find((candidate) => candidate.id === claimId && candidate.itemId === itemId)
-      const handoffNote = note.trim()
-      if (user?.role !== 'admin' || !item || item.type !== 'found' ||
-        item.status !== 'claim_under_review' || claim?.status !== 'approved' || handoffNote.length < 5) {
+  const markReturned = useCallback(
+    (itemId: string, claimId: string, note: string): boolean => {
+      if (!user) {
         toast('An approved claim and handoff note are required', 'error')
         return false
       }
-      const now = new Date().toISOString()
-      const otherClaims = claims.filter((candidate) => candidate.itemId === itemId && candidate.id !== claimId &&
-        (candidate.status === 'pending' || candidate.status === 'under_review'))
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === itemId
-            ? {
-                ...i,
-                status: 'returned',
-                timeline: i.timeline.map((t, idx) =>
-                  idx === i.timeline.length - 1
-                    ? { ...t, done: true, date: now, description: 'Returned to verified claimant' }
-                    : t,
-                ),
-              }
-            : i,
-        ),
-      )
-      setClaims((prev) => prev.map((candidate) =>
-        otherClaims.some((other) => other.id === candidate.id)
-          ? { ...candidate, status: 'rejected', updatedAt: now, adminNote: 'Item returned to another verified claimant' }
-          : candidate,
-      ))
-      setNotifications((prev) => [
-        {
-          id: uid('n'), userId: claim.claimantId, title: 'Item returned',
-          message: `The handoff for “${item.title}” was recorded.`, read: false, createdAt: now,
-        },
-        ...otherClaims.map((other) => ({
-          id: uid('n'), userId: other.claimantId, title: 'Claim closed',
-          message: `“${item.title}” was returned to another verified claimant.`, read: false, createdAt: now,
-        })),
-        ...prev,
-      ])
-      logAudit(user.name, 'handoff.confirmed', item.title, `Claimant: ${claim.claimantName}. ${handoffNote}`)
+      const outcome = recordHandoff(dataRef.current, user, { itemId, claimId, note })
+      if (!outcome.result.ok) {
+        toast(outcome.result.error.message, 'error')
+        return false
+      }
+      if (!commit(outcome.data)) return false
       toast('Handoff recorded — item returned')
       return true
     },
-    [items, claims, user, logAudit, toast],
+    [user, commit, toast],
   )
 
   const markAllNotificationsRead = useCallback(() => {
-    const uidNow = user?.id
-    if (!uidNow) return
-    setNotifications((prev) => prev.map((n) => (n.userId === uidNow ? { ...n, read: true } : n)))
-  }, [user])
+    if (!user) return
+    const outcome = markAllNotificationsReadOp(dataRef.current, user)
+    if (outcome.result.ok) commit(outcome.data)
+  }, [user, commit])
 
-  const itemsByOwner = useCallback((ownerId: string) => items.filter((i) => i.ownerId === ownerId), [items])
-  const claimsByUser = useCallback((userId: string) => claims.filter((c) => c.claimantId === userId), [claims])
+  const itemsByOwner = useCallback(
+    (ownerId: string) => data.items.filter((item) => item.ownerId === ownerId),
+    [data.items],
+  )
+  const claimsByUser = useCallback(
+    (userId: string) => data.claims.filter((claim) => claim.claimantId === userId),
+    [data.claims],
+  )
   const notificationsFor = useCallback(
-    (userId: string) => notifications.filter((n) => n.userId === userId),
-    [notifications],
+    (userId: string) => data.notifications.filter((notification) => notification.userId === userId),
+    [data.notifications],
   )
 
   const value = useMemo<AppState>(
     () => ({
       user,
-      items,
-      claims,
-      notifications,
-      audit,
+      items: data.items,
+      claims: data.claims,
+      notifications: data.notifications,
+      audit: data.audit,
       toasts,
       signIn,
       signOut,
@@ -439,9 +273,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       notificationsFor,
     }),
     [
-      user, items, claims, notifications, audit, toasts, signIn, signOut, addItem, submitClaim,
-      updateClaimStatus, markReturned, markAllNotificationsRead, toast, dismissToast,
-      itemsByOwner, claimsByUser, notificationsFor,
+      user, data, toasts, signIn, signOut, addItem, submitClaim, updateClaimStatus, markReturned,
+      markAllNotificationsRead, toast, dismissToast, itemsByOwner, claimsByUser, notificationsFor,
     ],
   )
 

@@ -2,12 +2,42 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { signInSchema, type SignInInput } from '../lib/schemas'
 import { useStore } from '../lib/store'
+import { cognitoEnabled, useCognitoSession } from '../lib/cognito'
+import { safeReturnTo } from '../lib/authNavigation'
+
+function CognitoSignInPage() {
+  const session = useCognitoSession()!
+  const { auth } = session
+  const [params] = useSearchParams()
+  const destination = safeReturnTo(params.get('returnTo'))
+  if (!auth.isLoading && auth.isAuthenticated) return <Navigate to={destination} replace />
+
+  return (
+    <main className="container-x flex min-h-[80vh] items-center justify-center pb-24 pt-28">
+      <div className="w-full max-w-md text-center">
+        <p className="eyebrow">Secure account</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tightest">Sign in to TRACE.</h1>
+        {auth.isLoading && <p className="mt-4 text-sm text-muted" role="status">Checking your secure session…</p>}
+        {(auth.error || session.error) && <p className="mt-4 text-sm text-red-700" role="alert">{session.error || 'Sign-in could not be completed. Try again.'}</p>}
+        <p className="mt-4 text-sm text-muted">Sign in with your invited TRACE account.</p>
+        <Button type="button" size="lg" className="mt-8 w-full" disabled={session.busy} onClick={() => void session.login(destination)}>
+          {session.busy ? 'Connecting…' : 'Continue to Sign In'} <ArrowRight className="h-4 w-4" />
+        </Button>
+        <Link to="/" className="mt-6 inline-block text-sm underline">Back to homepage</Link>
+      </div>
+    </main>
+  )
+}
 
 export function SignInPage() {
+  return cognitoEnabled ? <CognitoSignInPage /> : <DemoSignInPage />
+}
+
+function DemoSignInPage() {
   const { signIn } = useStore()
   const navigate = useNavigate()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
@@ -19,8 +49,8 @@ export function SignInPage() {
   } = useForm<SignInInput>({ resolver: zodResolver(signInSchema), mode: 'onTouched' })
 
   const onSubmit = async (data: SignInInput) => {
-    signIn(data.email, data.name)
-    const isAdmin = data.email.toLowerCase() === 'admin@trace.app'
+    if (!signIn(data.email, data.name)) return
+    const isAdmin = data.email.trim().toLowerCase() === 'admin@trace.app'
     navigate(isAdmin ? '/admin' : '/dashboard')
   }
 

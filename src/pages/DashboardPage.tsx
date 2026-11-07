@@ -164,7 +164,7 @@ export function DashboardPage() {
                             to={`/items/${item.id}`}
                             className="flex items-center gap-4 rounded-[4px] border border-line bg-paper p-4 transition-all hover:-translate-y-0.5 hover:border-ink"
                           >
-                            <img src={item.images[0]} alt="" className="h-16 w-16 rounded-[3px] object-cover" />
+                            {item.images.length ? <img src={item.images[0]} alt="" className="h-16 w-16 rounded-[3px] object-cover" /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[3px] bg-mist text-center text-xs text-muted">No photo</div>}
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-semibold">{item.title}</p>
                               <p className="mt-0.5 text-sm text-muted">{item.location} · {formatDate(item.date)}</p>

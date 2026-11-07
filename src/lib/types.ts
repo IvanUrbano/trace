@@ -1,13 +1,8 @@
+import type { ClaimStatus, ItemStatus } from './contract/statuses'
+
+export type { ClaimStatus, ItemStatus } from './contract/statuses'
+
 export type ListingType = 'lost' | 'found'
-
-export type ItemStatus =
-  | 'unclaimed'
-  | 'claim_pending'
-  | 'claim_under_review'
-  | 'returned'
-  | 'active'
-
-export type ClaimStatus = 'pending' | 'under_review' | 'approved' | 'rejected'
 
 export interface Item {
   id: string
@@ -54,6 +49,8 @@ export interface Claim {
   updatedAt: string
   adminNote?: string
   contactEmail: string
+  /** The claimant's own lost report this claim is based on, when linked. */
+  relatedLostReportId?: string
 }
 
 export interface Notification {
@@ -79,14 +76,6 @@ export interface User {
   name: string
   email: string
   role: 'user' | 'admin'
-}
-
-export interface PossibleMatch {
-  itemId: string
-  similarity: number
-  descriptionScore: number
-  categoryScore: number
-  dateLocationScore: number
 }
 
 export const CATEGORIES = [

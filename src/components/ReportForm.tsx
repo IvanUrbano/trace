@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, Loader2, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CATEGORIES, LOCATIONS } from '../lib/types'
@@ -14,22 +14,43 @@ const MAX_SOURCE_BYTES = 5_000_000
 const MAX_STORED_LENGTH = 700_000
 
 async function preparePhoto(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file)
+  let source: ImageBitmap | HTMLImageElement
+  let release: () => void
+  if (typeof createImageBitmap === 'function') {
+    const bitmap = await createImageBitmap(file)
+    source = bitmap
+    release = () => bitmap.close()
+  } else {
+    const url = URL.createObjectURL(file)
+    const image = new Image()
+    try {
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve()
+        image.onerror = () => reject(new Error('Photo could not be decoded'))
+        image.src = url
+      })
+    } catch (error) {
+      URL.revokeObjectURL(url)
+      throw error
+    }
+    source = image
+    release = () => URL.revokeObjectURL(url)
+  }
   try {
-    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height))
+    const scale = Math.min(1, 1024 / Math.max(source.width, source.height))
     const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    canvas.width = Math.max(1, Math.round(source.width * scale))
+    canvas.height = Math.max(1, Math.round(source.height * scale))
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Image processing is unavailable in this browser')
     context.fillStyle = '#fff'
     context.fillRect(0, 0, canvas.width, canvas.height)
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    context.drawImage(source, 0, 0, canvas.width, canvas.height)
     const result = canvas.toDataURL('image/jpeg', 0.72)
-    if (result.length > MAX_STORED_LENGTH) throw new Error('Photo is too large after compression')
+    if (!result.startsWith('data:image/jpeg;') || result.length > MAX_STORED_LENGTH) throw new Error('Photo is too large after compression')
     return result
   } finally {
-    bitmap.close()
+    release()
   }
 }
 
@@ -44,6 +65,13 @@ export function ReportForm() {
   const [step, setStep] = useState(0)
   const [previews, setPreviews] = useState<string[]>([])
   const [photoError, setPhotoError] = useState('')
+  const [processingPhotos, setProcessingPhotos] = useState(false)
+  const processingRef = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
   const { addItem } = useStore()
   const navigate = useNavigate()
 
@@ -62,7 +90,7 @@ export function ReportForm() {
   const type = watch('type')
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files?.length) return
+    if (!files?.length || processingRef.current || isSubmitting) return
     setPhotoError('')
     const selected = Array.from(files)
     if (selected.length > 4 - previews.length) {
@@ -73,11 +101,16 @@ export function ReportForm() {
       setPhotoError('Use JPG, PNG, or WebP photos under 5 MB each.')
       return
     }
+    processingRef.current = true
+    setProcessingPhotos(true)
     try {
       const urls = await Promise.all(selected.map(preparePhoto))
-      setPreviews((current) => [...current, ...urls].slice(0, 4))
+      if (mounted.current) setPreviews((current) => [...current, ...urls])
     } catch {
-      setPhotoError('Could not process a photo. Try a smaller image.')
+      if (mounted.current) setPhotoError('Could not process a photo. Try a smaller image.')
+    } finally {
+      processingRef.current = false
+      if (mounted.current) setProcessingPhotos(false)
     }
   }
 
@@ -90,20 +123,21 @@ export function ReportForm() {
   }
 
   const next = async () => {
+    if (processingRef.current) return
     const ok = await validateStep()
     if (ok) setStep((s) => Math.min(s + 1, steps.length - 1))
   }
 
   const onSubmit = async (data: ReportInput) => {
-    const images = previews.length ? previews : ['/img/hero-flatlay.jpg']
+    if (step !== 2 || processingRef.current) return
+    const images = previews
     const id = addItem({
       type: data.type,
       title: data.title,
       category: data.category,
       description: data.description,
       location: data.location,
-      date: new Date(data.date).toISOString(),
-      status: data.type === 'lost' ? 'active' : 'unclaimed',
+      date: data.date,
       images,
       privateDetails: data.privateDetails || undefined,
     })
@@ -256,6 +290,7 @@ export function ReportForm() {
             >
               <input
                 type="file"
+                disabled={processingPhotos || isSubmitting}
                 accept="image/jpeg,image/png,image/webp"
                 multiple
                 className="sr-only"
@@ -268,6 +303,7 @@ export function ReportForm() {
               <p className="mt-2 text-sm font-medium">Drag photos here or click to browse</p>
               <p className="mt-1 text-xs text-muted">JPG, PNG, or WebP · up to 5 MB each</p>
             </label>
+            {processingPhotos && <p className="mt-2 text-sm text-muted" role="status">Processing photos… Please wait before continuing.</p>}
             {photoError && <p className="mt-2 text-xs font-medium" role="alert">{photoError}</p>}
             {previews.length > 0 && (
               <ul className="mt-4 grid grid-cols-4 gap-3">
@@ -276,6 +312,7 @@ export function ReportForm() {
                     <img src={src} alt={`Preview ${i + 1}`} className="aspect-square w-full rounded-[3px] border border-line object-cover" />
                     <button
                       type="button"
+                      disabled={processingPhotos || isSubmitting}
                       onClick={() => removePreview(i)}
                       aria-label={`Remove photo ${i + 1}`}
                       className="absolute -right-2 -top-2 rounded-full border border-line bg-paper p-1 shadow-sm transition-colors hover:bg-ink hover:text-paper"
@@ -288,23 +325,21 @@ export function ReportForm() {
             )}
           </div>
 
-          {type === 'lost' && (
-            <div>
+          <div>
               <label htmlFor="privateDetails" className="text-sm font-medium">
-                Identifying details <span className="font-normal text-muted">(demo data)</span>
+                {type === 'lost' ? 'Identifying details' : 'Private reference details'} <span className="font-normal text-muted">(optional demo data)</span>
               </label>
               <textarea
                 id="privateDetails"
                 rows={2}
                 {...register('privateDetails')}
-                placeholder="Details only the true owner would know — never shown in public listings."
+                placeholder={type === 'lost' ? 'Details only the true owner would know.' : 'Describe a detail you withheld from the public listing for a reviewer to compare.'}
                 className="mt-2 w-full rounded-[3px] border border-line bg-paper px-4 py-3 text-sm transition-colors placeholder:text-muted/60 focus:border-ink"
               />
               <p className="mt-1.5 text-xs text-muted">
                 Not shown on listings. This demo saves details in your browser; avoid sensitive information.
               </p>
-            </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -334,7 +369,7 @@ export function ReportForm() {
             </div>
             <div className="flex gap-3">
               <dt className="w-32 shrink-0 text-muted">Photos</dt>
-              <dd className="font-medium">{previews.length || 'Default image'}</dd>
+              <dd className="font-medium">{previews.length || 'No photos'}</dd>
             </div>
           </dl>
           <p className="mt-5 text-xs leading-relaxed text-muted">
@@ -349,16 +384,16 @@ export function ReportForm() {
           type="button"
           variant="secondary"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
-          disabled={step === 0}
+          disabled={step === 0 || processingPhotos || isSubmitting}
         >
           Back
         </Button>
         {step < steps.length - 1 ? (
-          <Button type="button" onClick={(event) => { event.preventDefault(); void next() }} showArrow>
+          <Button type="button" disabled={processingPhotos || isSubmitting} onClick={(event) => { event.preventDefault(); void next() }} showArrow>
             Continue
           </Button>
         ) : (
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || processingPhotos}>
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Submit Report
           </Button>

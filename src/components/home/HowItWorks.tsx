@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { Search, ShieldCheck, ClipboardList, Handshake } from 'lucide-react'
 import { RevealOnScroll } from '../motion'
+import { SurroundingDetails } from './SurroundingDetails'
 
 const steps = [
   {
@@ -28,8 +29,9 @@ const steps = [
 export function HowItWorks() {
   const reduce = useReducedMotion()
   return (
-    <section id="how-it-works" className="scroll-mt-24 py-24 lg:py-32" aria-labelledby="how-heading">
-      <div className="container-x">
+    <section id="how-it-works" className="relative isolate overflow-hidden scroll-mt-24 py-24 lg:py-32" aria-labelledby="how-heading">
+      <SurroundingDetails variant="process" />
+      <div className="container-x relative">
         <RevealOnScroll>
           <p className="eyebrow">How It Works</p>
           <h2 id="how-heading" className="h2-section mt-4 max-w-2xl">

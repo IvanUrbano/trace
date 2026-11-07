@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
-import { ChevronDown } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, ScanSearch, ShieldCheck } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { AshLayer } from './AshLayer'
 import { HeroMark } from './hero3d/HeroMark'
 import { isWebGLAvailable } from './hero3d/webgl'
-import { HERO_COPY, useHeroProgress } from './useHeroProgress'
+import { HERO_COPY } from './useHeroProgress'
+import { SurroundingDetails } from './SurroundingDetails'
 
 const words = ['Lost', 'something?', "Let's", 'bring', 'it', 'back.']
 
@@ -29,13 +30,13 @@ export function HeroSection() {
     target: sectionRef,
     offset: cinematic ? ['start start', 'end end'] : ['start start', 'end start'],
   })
-  // Keep 540vh of story travel, then reserve 120vh for the final composition.
-  const storyProgress = useTransform(rawProgress, [0, 540 / 660], [0, 1])
-  const scrollYProgress = useHeroProgress(storyProgress, cinematic)
+  // Lower sensitivity with 25% more story travel, plus the 120vh final hold.
+  const storyProgress = useTransform(rawProgress, [0, 675 / 795], [0, 1])
+  const scrollYProgress = storyProgress
   const markProgress = useTransform(storyProgress, [0, 0.88], [0, 1])
   const hintOpacity = useTransform(rawProgress, [0, 0.1], [1, 0])
   return (
-    <section ref={sectionRef} className={cn('relative', cinematic && 'h-[760vh]')}>
+    <section ref={sectionRef} className={cn('relative', cinematic && 'h-[895vh]')}>
       <div
         className={cn(
           'flex min-h-screen flex-col justify-center overflow-hidden pt-24 pb-16',
@@ -58,6 +59,7 @@ export function HeroSection() {
           }}
         />
 
+        <SurroundingDetails variant="hero" />
         <div className="container-x relative grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8">
         <div className="relative">
         <AshLayer progress={scrollYProgress} active={cinematic} exit={HERO_COPY.introExit}>
@@ -127,11 +129,21 @@ export function HeroSection() {
               ariaHidden
               className="pointer-events-none absolute inset-0 flex flex-col justify-center"
             >
-              <p className="eyebrow">A possible connection</p>
-              <p className="h2-section mt-4 max-w-xl">Possible matches, ranked.</p>
-              <p className="mt-6 max-w-md text-base leading-relaxed text-muted">
-                Compare found items by category, description, date, and location.
-              </p>
+              <div data-testid="hero-matching-panel" className="relative max-w-xl">
+                <div className="mb-6 flex items-center gap-4" aria-hidden="true">
+                  <ScanSearch className="h-5 w-5 text-accent" strokeWidth={1.4} aria-hidden="true" />
+                  <span className="h-px w-16 bg-accentLight" />
+                  <span className="text-[10px] font-medium tracking-[0.2em] text-muted">01</span>
+                </div>
+                <p className="eyebrow">A possible connection</p>
+                <p className="h2-section mt-4 max-w-xl">Possible matches, ranked.</p>
+                <p className="mt-5 max-w-md text-base leading-relaxed text-muted">
+                  Compare found items by category, description, date, and location.
+                </p>
+                <div className="mt-7 flex items-center gap-2" aria-hidden="true">
+                  <span className="h-1 w-12 rounded-full bg-accent/65" /><span className="h-1 w-8 rounded-full bg-accentLight/65" /><span className="h-1 w-4 rounded-full bg-accentLight/40" />
+                </div>
+              </div>
             </AshLayer>
             <AshLayer
               progress={scrollYProgress}
@@ -140,11 +152,21 @@ export function HeroSection() {
               ariaHidden
               className="pointer-events-none absolute inset-0 flex flex-col justify-center"
             >
-              <p className="eyebrow">A careful return</p>
-              <p className="h2-section mt-4 max-w-xl">A person reviews the claim.</p>
-              <p className="mt-6 max-w-md text-base leading-relaxed text-muted">
-                Only an approved claim can proceed to a recorded handoff.
-              </p>
+              <div data-testid="hero-review-panel" className="relative max-w-xl">
+                <div className="mb-6 flex items-center gap-4" aria-hidden="true">
+                  <ShieldCheck className="h-5 w-5 text-accent" strokeWidth={1.4} aria-hidden="true" />
+                  <span className="h-px w-16 bg-accentLight" />
+                  <span className="text-[10px] font-medium tracking-[0.2em] text-muted">02</span>
+                </div>
+                <p className="eyebrow">A careful return</p>
+                <p className="h2-section mt-4 max-w-xl">A person reviews the claim.</p>
+                <p className="mt-5 max-w-md text-base leading-relaxed text-muted">
+                  Only an approved claim can proceed to a recorded handoff.
+                </p>
+                <div className="mt-7 flex items-center gap-3 text-[11px] font-medium text-accent" aria-hidden="true">
+                  <span>Human review</span><span className="h-px w-8 bg-accentLight" /><ArrowUpRight className="h-3.5 w-3.5" /><span>Recorded handoff</span>
+                </div>
+              </div>
             </AshLayer>
           </>
         )}
@@ -155,7 +177,7 @@ export function HeroSection() {
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-[6%] inset-y-[5%] rounded-full bg-accentLight/20" />
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-[2%] inset-y-[1%] rounded-full border border-dashed border-accentLight/60" />
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-[18%] bottom-[8%] h-14 rounded-[50%] blur-[6px]" style={{ background: 'radial-gradient(ellipse, rgba(23,25,38,0.24), rgba(23,25,38,0.08) 38%, transparent 70%)' }} />
-          <HeroMark progress={markProgress} />
+          <HeroMark progress={markProgress} endProgress={rawProgress} />
         </div>
       </div>
 

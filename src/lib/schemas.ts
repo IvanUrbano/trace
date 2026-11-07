@@ -19,18 +19,19 @@ export type ReportInput = z.infer<typeof reportSchema>
 export const claimSchema = z.object({
   itemId: z.string().min(1, 'Select the found item you are claiming.'),
   statement: z
-    .string()
+    .string().trim()
     .min(20, 'Explain why this item may belong to you (at least 20 characters).'),
-  contactEmail: z.string().email('Enter a valid email address.'),
-  q1: z.string().min(1, 'Answer required.'),
-  q2: z.string().min(1, 'Answer required.'),
-  q3: z.string().min(1, 'Answer required.'),
+  contactEmail: z.email('Enter a valid email address.'),
+  q1: z.string().trim().min(1, 'Answer required.'),
+  q2: z.string().trim().min(1, 'Answer required.'),
+  q3: z.string().trim().min(1, 'Answer required.'),
+  relatedLostReportId: z.string().optional(),
 })
 
 export type ClaimInput = z.infer<typeof claimSchema>
 
 export const signInSchema = z.object({
-  email: z.string().email('Enter a valid email address.'),
+  email: z.email('Enter a valid email address.'),
   name: z.string().optional(),
 })
 

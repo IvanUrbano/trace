@@ -18,12 +18,12 @@ export function ItemCard({ item, index = 0 }: { item: Item; index?: number }) {
       <Link to={`/items/${item.id}`} className="block">
         <div className="overflow-hidden rounded-[3px] border border-line bg-mist">
           <div className="aspect-[4/3] overflow-hidden">
-            <img
+            {item.images.length ? <img
               src={item.images[0]}
               alt={item.title}
               loading="lazy"
               className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
-            />
+            /> : <div className="flex h-full items-center justify-center text-sm text-muted">No photo provided</div>}
           </div>
         </div>
         <div className="mt-4 flex items-start justify-between gap-3">

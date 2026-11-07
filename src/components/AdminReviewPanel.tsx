@@ -54,6 +54,8 @@ export function AdminReviewPanel() {
           <ul className="mt-6 space-y-4">
             {pending.map((claim) => {
               const item = items.find((i) => i.id === claim.itemId)
+              const linkedLost = items.find((i) => i.id === claim.relatedLostReportId && i.type === 'lost' && i.ownerId === claim.claimantId)
+              const canReview = authorized && user?.id !== claim.claimantId
               return (
                 <li key={claim.id} className="rounded-[4px] border border-line bg-paper p-6">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -78,20 +80,24 @@ export function AdminReviewPanel() {
                   </dl>
                   {item?.privateDetails && (
                     <p className="mt-3 rounded-[3px] border border-line p-3 text-xs leading-relaxed text-muted">
-                      <span className="font-semibold text-ink">Private reference details (owner-provided): </span>
+                      <span className="font-semibold text-ink">Private reference details (finder-provided): </span>
                       {item.privateDetails}
                     </p>
                   )}
+                  {linkedLost && <div className="mt-3 rounded-[3px] border border-line p-3 text-xs leading-relaxed text-muted">
+                    <p><span className="font-semibold text-ink">Linked lost report: </span>{linkedLost.title} · {linkedLost.location}</p>
+                    {linkedLost.privateDetails && <p className="mt-2"><span className="font-semibold text-ink">Claimant's identifying details: </span>{linkedLost.privateDetails}</p>}
+                  </div>}
                   <div className="mt-5 flex flex-wrap gap-3">
                     <Button
-                      disabled={!authorized}
+                      disabled={!canReview}
                       onClick={() => setDeciding({ claim, action: 'approved' })}
                     >
                       Approve Claim
                     </Button>
                     <Button
                       variant="secondary"
-                      disabled={!authorized}
+                      disabled={!canReview}
                       onClick={() => setDeciding({ claim, action: 'rejected' })}
                     >
                       Decline
@@ -102,6 +108,7 @@ export function AdminReviewPanel() {
                       Sign in as an administrator to take action on claims.
                     </p>
                   )}
+                  {authorized && !canReview && <p className="mt-3 text-xs text-muted">A different administrator must review your claim.</p>}
                 </li>
               )
             })}
@@ -116,7 +123,7 @@ export function AdminReviewPanel() {
         <ul className="mt-6 space-y-3">
           {decided.map((claim) => {
             const item = items.find((i) => i.id === claim.itemId)
-            const canConfirm = claim.status === 'approved' && item?.status === 'claim_under_review'
+            const canConfirm = claim.status === 'approved' && item?.status === 'awaiting_handoff'
             return (
               <li key={claim.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-line bg-paper px-5 py-4">
                 <div>

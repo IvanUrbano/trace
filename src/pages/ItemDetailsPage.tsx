@@ -57,11 +57,11 @@ export function ItemDetailsPage() {
             transition={{ duration: 0.35 }}
             className="overflow-hidden rounded-[4px] border border-line bg-mist"
           >
-            <img
+            {item.images.length ? <img
               src={item.images[activeImg]}
               alt={item.title}
               className="aspect-[4/3] w-full object-cover"
-            />
+            /> : <div className="flex aspect-[4/3] items-center justify-center text-sm text-muted">No photo provided</div>}
           </motion.div>
           {item.images.length > 1 && (
             <div className="mt-3 flex gap-3">

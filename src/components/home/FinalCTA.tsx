@@ -8,9 +8,10 @@ export function FinalCTA() {
   const reduce = useReducedMotion()
   return (
     <section className="relative overflow-hidden bg-ink py-28 text-paper lg:py-36" aria-labelledby="cta-heading">
+      <div aria-hidden="true" className="pointer-events-none absolute left-[46%] top-1/2 hidden -translate-x-1/2 -translate-y-1/2 select-none sm:block">
       <motion.span
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-[18vw] font-bold tracking-tightest text-accentLight/10 sm:block"
+        data-testid="cta-watermark"
+        className="block whitespace-nowrap text-[18vw] font-bold tracking-tightest text-accentLight/10"
         initial={reduce ? false : { opacity: 0, scale: 0.96 }}
         whileInView={{ opacity: 1, scale: 1 }}
         viewport={{ once: true }}
@@ -18,6 +19,7 @@ export function FinalCTA() {
       >
         TRACE
       </motion.span>
+      </div>
 
       <div className="container-x relative text-center">
         <p className="mb-6 text-xs font-medium uppercase tracking-[0.22em] text-accentLight">The next step is yours</p>
