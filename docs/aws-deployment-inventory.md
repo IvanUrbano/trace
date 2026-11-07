@@ -24,7 +24,7 @@ The account owner reviewed the remaining credit and Free-plan expiry in AWS Bill
 | Public URL | `https://main.d2oswv5myenb38.amplifyapp.com/` |
 | Environment variables | `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN` (public SPA values, not secrets) |
 | Scope | Static frontend only; no API, database, shared records, or photo upload |
-| SPA rewrite | Applied: `</^[^.]+$|.(?!.(css|js|map|jpg|jpeg|png|gif|webp|svg|woff2?|ttf|ico)$)(?=[^.]*$)/>` → `/index.html` (200); deep links return the app shell |
+| SPA rewrite | Applied: `</^[^.]+$|\\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|webp|woff|woff2|ttf|map|json|manifest|webmanifest)$)([^.]+$)/>` → `/index.html` (200); deep links return the app shell. The JSON source needs escaped dots; an earlier unescaped-dot rule also rewrote `/assets/*.js` to HTML (MIME error), and its stale edge cache entry required a redeploy. |
 | Verified | Root document and hashed JS/CSS assets return HTTP 200; `/discover`, `/signin`, `/items/...`, and `/community` return 200 (2026-11-08) |
 | Outstanding | Amplify-origin callback/sign-out URLs in Cognito, real signed-in browser verification |
 
