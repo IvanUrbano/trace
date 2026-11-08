@@ -8,7 +8,8 @@ import {
   reviewClaimRequest,
   submitClaimRequest,
 } from '../../src/lib/contract/requests.ts'
-import { PutObjectCommand, getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { RepositoryError } from '../postgres/repository.mjs'
 
 const DEFAULT_MAX_BODY_BYTES = 256 * 1024
