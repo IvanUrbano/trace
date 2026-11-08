@@ -9,6 +9,7 @@ import { StatusTimeline } from '../components/StatusTimeline'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { useStore } from '../lib/store'
+import { useCognitoSession } from '../lib/cognito'
 import { usePublicItem } from '../lib/api/publicItems'
 import { apiConfigured, listMyClaims } from '../lib/api/client'
 import { formatDate } from '../lib/utils'
@@ -17,6 +18,7 @@ export function ItemDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { items, user, toast, claims } = useStore()
+  const session = useCognitoSession()
   const api = usePublicItem(id)
   const item = api.enabled ? api.item : items.find((i) => i.id === id)
   const [activeImg, setActiveImg] = useState(0)
@@ -155,12 +157,12 @@ export function ItemDetailsPage() {
             </p>
 
             <div className="mt-8 space-y-3">
-              {item.type === 'found' && claimable && !existingClaim && (apiConfigured() ? true : !!user) && (
+              {item.type === 'found' && claimable && !existingClaim && ((apiConfigured() && session?.auth.isAuthenticated) || (!apiConfigured() && !!user)) && (
                 <ClaimForm item={item} />
               )}
-              {item.type === 'found' && claimable && !existingClaim && !apiConfigured() && !user && (
-                <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
-                  Submit a Claim
+              {item.type === 'found' && claimable && !existingClaim && ((apiConfigured() && !session?.auth.isAuthenticated) || (!apiConfigured() && !user)) && (
+                <Button asChildLink="/signin" size="lg" className="w-full sm:w-auto">
+                  Sign In to Claim
                 </Button>
               )}
               {existingClaim && (
