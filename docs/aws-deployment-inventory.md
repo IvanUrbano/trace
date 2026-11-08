@@ -22,8 +22,8 @@ The account owner reviewed the remaining credit and Free-plan expiry in AWS Bill
 | Build spec | Repository `amplify.yml`: `npm ci`, `npm run build`, artifacts in `dist` |
 | Runtime | `.nvmrc` / `engines` pin Node 24.15.0; build image Amazon Linux 2023 (default) |
 | Public URL | `https://main.d2oswv5myenb38.amplifyapp.com/` |
-| Environment variables | `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN` (public SPA values, not secrets) |
-| Scope | Static frontend only; no API, database, shared records, or photo upload |
+| Environment variables | `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN`, `VITE_API_BASE_URL` (public SPA values, not secrets) |
+| Scope | Static frontend only; no shared records or photo upload yet. Report creation posts to the live EC2 API when `VITE_API_BASE_URL` is set |
 | SPA rewrite | Applied: `</^[^.]+$|\\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|webp|woff|woff2|ttf|map|json|manifest|webmanifest)$)([^.]+$)/>` → `/index.html` (200); deep links return the app shell. The JSON source needs escaped dots; an earlier unescaped-dot rule also rewrote `/assets/*.js` to HTML (MIME error), and its stale edge cache entry required a redeploy. |
 | Verified | Root document and hashed JS/CSS assets return HTTP 200; `/discover`, `/signin`, `/items/...`, and `/community` return 200 (2026-11-08) |
 | Outstanding | The API-backed workflow |
