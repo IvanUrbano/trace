@@ -83,9 +83,15 @@ export function Navbar() {
       <Link to="/" aria-label="TRACE home" className="pointer-events-auto absolute left-3 top-2 rounded-xl bg-paper/85 px-3 py-2 text-base font-bold tracking-[0.25em] text-ink backdrop-blur-md focus-visible:outline-accent sm:left-6">
         TRACE
       </Link>
-      <Link to="/report" aria-current={selected('/report') ? 'page' : undefined} className={cn('pointer-events-auto absolute right-6 top-2 hidden items-center gap-2 rounded-2xl border px-3.5 py-2 text-[13px] font-semibold shadow-sm backdrop-blur-xl transition-colors xl:inline-flex', selected('/report') ? 'border-accentLight bg-accentLight text-ink' : 'border-accentLight/40 bg-[#160D25]/85 text-paper hover:bg-accent')}>
-        Report an Item <span aria-hidden="true">↗</span>
-      </Link>
+      <div className="pointer-events-auto absolute right-6 top-2 hidden items-center gap-2 xl:flex">
+        <Link to={accountLink} className={cn('rounded-2xl border px-3.5 py-2 text-[13px] font-semibold shadow-sm backdrop-blur-xl transition-colors', selected(accountLink) ? 'border-accentLight bg-accentLight text-ink' : 'border-accentLight/40 bg-[#160D25]/85 text-paper hover:bg-accent')}>
+          {accountLabel}
+        </Link>
+        {logout}
+        <Link to="/report" aria-current={selected('/report') ? 'page' : undefined} className={cn('inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-[13px] font-semibold shadow-sm backdrop-blur-xl transition-colors', selected('/report') ? 'border-accentLight bg-accentLight text-ink' : 'border-accentLight/40 bg-[#160D25]/85 text-paper hover:bg-accent')}>
+          Report an Item <span aria-hidden="true">↗</span>
+        </Link>
+      </div>
       <div className={cn(
         'pointer-events-auto relative ml-auto w-[calc(100%-110px)] max-w-[420px] overflow-hidden rounded-[26px] border border-paper/15 text-paper shadow-[inset_0_1px_0_rgba(231,234,243,0.14),0_10px_32px_-12px_rgba(22,13,37,0.5)] backdrop-blur-2xl backdrop-saturate-150 transition-colors duration-300 xl:mx-auto xl:w-fit xl:max-w-[760px]',
         scrolled || open ? 'bg-[#160D25]/90' : 'bg-[#160D25]/80',
@@ -112,12 +118,7 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 xl:flex">
-          <Link to={accountLink} className={linkClass(selected(accountLink))} aria-current={selected(accountLink) ? 'page' : undefined}>
-            {accountLabel}
-          </Link>
-          {logout}
-        </div>
+
 
         <button
           ref={menuButton}
