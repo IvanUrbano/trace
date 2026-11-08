@@ -54,16 +54,17 @@ The account owner reviewed the remaining credit and Free-plan expiry in AWS Bill
 
 | Setting | Current configuration |
 | --- | --- |
-| Purpose | Node HTTP API and PostgreSQL for shared public listings; writes remain browser-local |
+| Purpose | Node HTTP API and PostgreSQL for shared public listings; report creation and photo uploads go through the API |
 | Service | One Amazon EC2 instance, `t3.micro`, Amazon Linux 2023, `ap-southeast-1`, with an Elastic IP |
 | Public API | `https://54.254.106.234.sslip.io` (Caddy + Let's Encrypt, HTTP-01 challenge) |
 | Runtime | Docker Compose: `postgres:18-alpine` (volume at `/var/lib/postgresql`), `node:24-alpine` API image, one-shot migration container, `caddy:2-alpine` |
 | Network | Security group: SSH from the owner's IP only; 80 and 443 public; no public database or API port |
 | Host tooling | Docker Engine, Compose plugin, and buildx (installed by `setup.sh`); 2 GB swap |
-| Secrets | Database password and Cognito settings in a root-only `deploy/ec2/.env`; never committed |
+| Secrets | Database password, Cognito settings, and `S3_BUCKET`/`S3_REGION`/`S3_PUBLIC_BASE_URL` in a root-only `deploy/ec2/.env`; never committed |
 | Data | `scripts/seed-demo-reports.sql` inserted seven public demo reports into the `Mandaluyong` community; no accounts, claims, or private data |
-| Verified | `GET /health` returns `{"ok":true}`; `GET /api/items` returns the seeded listings; `GET /api/me/reports` returns 401 `unauthorized` without a token (2026-11-08) |
-| Outstanding | Real Cognito token verification, CORS from the Amplify origin, write endpoints, photo storage, community API, backups |
+| Verified | `GET /health` returns `{"ok":true}`; `GET /api/items` returns the seeded listings; `POST /api/reports` returns 401 `unauthorized` without a token; report creation with bearer token succeeds (2026-11-08) |
+| Outstanding | Real Cognito token verification against the live pool, claims/review/handoff write adapters, photo orphaned-upload cleanup, community API, backups |
+| Photos | `POST /api/photos/presign` returns a presigned S3 PUT URL; photos are uploaded directly to S3 and object keys stored in `report_media`. Requires an S3 bucket and EC2 instance profile with S3 put/get permissions. |
 
 ## Integration status
 

@@ -309,14 +309,14 @@ Acceptance for B: typed contracts and domain tests exist, including two-user iso
 - [TODO] Provision the EC2 backend: one `t3.micro` AL2023 instance, security group (SSH from owner IP, 80/443 public), Elastic IP, Docker Compose stack, Caddy HTTPS, and the migration container. This replaces the earlier API Gateway/Lambda/RDS plan.
 - [TODO] Finalize production database operation: least-privilege roles, TLS/connection settings, backups (`pg_dump`/snapshots), recovery drills, log retention, cursor pagination, and index review under real query loads. Initial tables/indexes and the Compose database are local only.
 - [TODO] Restrict database update/delete privileges and protect audit events from ordinary application roles. Claim/review/handoff writes are already transactional with server-derived actors and timestamps.
-- [TODO] Store photos in private S3 with constrained uploads, an authorized read strategy, and cleanup of abandoned uploads. Keep image data out of PostgreSQL and localStorage in production.
+- [DONE] Store photos in private S3 with presigned PUT uploads. `POST /api/photos/presign` returns an object key, upload URL, and expiry; the frontend uploads directly to S3 and submits the object key with the report. Images are stored in `report_media` and served in public listings via `S3_PUBLIC_BASE_URL`. Requires an S3 bucket and an EC2 instance profile with S3 put/get permissions; abandoned-upload cleanup remains follow-up work.
 - [DONE] Move ranking to the backend with bounded candidate retrieval. `GET /api/me/matches` returns the existing heuristic for the caller's own lost report; results stay advisory and exclude returned items. Thresholds and accuracy claims still require the evaluation work in section E.
 
 Acceptance for C: two real accounts on separate browsers share reports but cannot read each other's restricted data; non-admin review requests are denied; concurrent approvals cannot produce two winners; retries do not duplicate handoffs; data survives reload/device changes; uploads obey access and size rules.
 
 ### D. Connect and deploy the frontend
 
-- [DONE] Report creation now posts to the live API when the user is signed in through Cognito and `VITE_API_BASE_URL` is set; the bearer token comes from the OIDC session and `VITE_API_BASE_URL` is configured on Amplify. Remaining mutations (claims, review, handoff) stay browser-demo only; loading/error/retry polish and token-expiry handling remain.
+- [DONE] Report creation now posts to the live API when the user is signed in through Cognito and `VITE_API_BASE_URL` is set; the bearer token comes from the OIDC session. Photos are uploaded to S3 via presigned PUT URLs and submitted with the report. Remaining mutations (claims, review, handoff) stay browser-demo only; loading/error/retry polish and token-expiry handling remain.
 - [DONE] Deploy the static frontend through Amplify Hosting using the pinned runtime, `npm ci`, `npm run build`, and `dist` artifacts, with SPA rewrites and verified deep links. Deployment exists (2026-11-08, root/assets and SPA deep links return 200); the Amplify origin is registered in the Cognito callback/sign-out allowlists and a real test-user sign-in and sign-out succeeded. The API-backed workflow remains outstanding.
 - [TODO] Configure environment-specific public settings, allowed origins, Cognito callbacks/logout URLs, and actual deployment QR origins.
 - [TODO] Run the workflow checks against the deployed test environment using non-sensitive fixtures. Test mobile layout and camera permissions manually when automated coverage is insufficient.
@@ -346,6 +346,10 @@ Deployed the static frontend through AWS Amplify Hosting from GitHub branch `mai
 ### 2026-11-08 — report creation connected to the live API
 
 Added `src/lib/api/client.ts` (auth-gated fetch, bearer token from the Cognito session, contract error mapping) and wired `POST /api/reports` into the report wizard when `VITE_API_BASE_URL` is set; photos are processed locally for preview but not yet saved with cloud reports. `VITE_API_BASE_URL` was added to the Amplify environment variables and the site redeployed through GitHub. The EC2 API enforces bearer auth: unauthenticated report creation returns 401 `unauthorized`. Verification: typecheck, production build, unauthenticated POST returns 401. Full sign-in → submit → live listing flow requires real Cognito credentials and remains a manual check.
+
+### 2026-11-08 — photo uploads to S3
+
+Added `POST /api/photos/presign` to the EC2 API (auth-gated, validates file type/size, returns an S3 presigned PUT URL, object key, and expiry). The report wizard now uploads each photo directly to S3 before submission and submits the object keys with the report. `createReport` stores object keys in `report_media`; public listings serve full S3 URLs via `S3_PUBLIC_BASE_URL`. Added `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` dependencies. Requires an S3 bucket and an EC2 instance profile with S3 put/get permissions, plus `S3_BUCKET`/`S3_REGION`/`S3_PUBLIC_BASE_URL` in the instance `.env`. Verification: typecheck, production build. Orphaned-upload cleanup remains follow-up work.
 
 ### 2026-11-08 — public landing page and Cognito account navigation
 
