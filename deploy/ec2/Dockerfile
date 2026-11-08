@@ -1,0 +1,15 @@
+FROM node:24-alpine
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY src ./src
+COPY backend ./backend
+COPY scripts/postgres-migrate.mjs ./scripts/postgres-migrate.mjs
+
+USER node
+EXPOSE 3000
+CMD ["node", "backend/api/server.mjs"]

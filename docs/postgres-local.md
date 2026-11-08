@@ -1,16 +1,17 @@
 # TRACE local PostgreSQL foundation
 
-TRACE now has a PostgreSQL schema and a server-only repository. The React app
-still uses its browser demo store: there is no HTTP API, verified login, upload
-service, or automatic import of demo data. Do not expose the repository or a
-database connection to a browser. No AWS resources are created by these files.
+TRACE has a PostgreSQL schema, a server-only repository, and a local HTTP API. The
+React app still uses its browser demo store: there is no deployed API, verified
+production login, upload service, or automatic import of demo data. Do not expose
+the repository or a database connection to a browser. No AWS resources are
+created by these files.
 
 ## Local development
 
 Use a dedicated local PostgreSQL database and a separate database role. Node
-24.15.0 and PostgreSQL 18.3 were used for the local verification; PostgreSQL
-version and compatibility with the chosen RDS engine must be pinned and tested
-before deployment. Install the locked dependencies using `npm ci`.
+24.15.0 and PostgreSQL 18.3 were used for the local verification; the planned
+deployment uses the `postgres:18-alpine` image. Install the locked dependencies
+using `npm ci`.
 
 After creating a dedicated, empty database using your local PostgreSQL tools,
 provide its connection string to the migration command in your environment:
@@ -60,30 +61,29 @@ npm.cmd run test:postgres
   lock. It does not yet detect migration checksum drift. `scripts/postgres-test.mjs` verifies access scoping, rollback, simultaneous
   approvals, database constraints, linked returns, and repeat-safe handoffs.
 
+- `backend/api/` is the local HTTP layer: `server.mjs` (Node HTTP wrapper and graceful shutdown), `app.mjs` (routes, bearer-token authentication, shared Zod request schemas, DTO mapping, contract error/status mapping, CORS allowlist, 256 KB body cap), and `jwt.mjs` (Cognito JWKS verification with `jose`, access or ID token, audience check). Verified identities are mapped to a local user and community membership; an `admin` Cognito group maps to the `admin` role and never downgrades an existing admin. `scripts/api-test.mjs` covers 16 handler cases with a fake repository and verifier. The API is not deployed and the React app does not call it yet.
+- `deploy/ec2/` contains the planned single-instance deployment: API image, Docker Compose stack with PostgreSQL, one-shot migration, Caddy HTTPS, and an AL2023 setup script. It has not been run against AWS.
+
 The repository accepts an `actorId` **only from a trusted server boundary**.
-That boundary does not exist yet. The next API must verify authentication,
-derive actor identity server-side, enforce authorization on every operation,
-limit request bodies before parsing, map errors safely, grant least-privilege
-database roles, use TLS and secure connection settings, and implement remaining
-pagination, response mapping, community, and photo operations. Database views alone do
-not protect private data if an API/database role has unrestricted table access.
-The audit table is not yet protected by production grants or an immutable log.
+That boundary is now the local API, which derives identity from a verified Cognito
+token; it has not been exercised against the real pool. Before deployment, review
+production database roles, TLS, backups, pagination, photo operations, log
+retention, and the remaining community operations. Database views alone do not
+protect private data if an API/database role has unrestricted table access. The
+audit table is not yet protected by production grants or an immutable log.
 
 ## AWS later
 
-The chosen production direction is PostgreSQL, with Amazon RDS for PostgreSQL
-as a candidate managed service. Before provisioning, check account eligibility,
-credits, current regional pricing, backup/storage and idle-instance costs, and
-budget alerts. RDS is not automatically free. Database network access,
-credentials, connection pooling, backups, recovery, and migration compatibility
-still need a deployment design. Browser demo data must never be uploaded
-automatically.
+The selected deployment is one small EC2 instance running the API and PostgreSQL
+in Docker Compose with Caddy HTTPS, instead of API Gateway/Lambda plus RDS. Check
+the account's Free plan credits and create a budget alert first. The instance is
+a single point of failure: plan OS patching, `pg_dump` backups, log retention,
+and a teardown procedure. Browser demo data must never be uploaded automatically.
+See [aws-starter.md](./aws-starter.md) for the console steps.
 
 ## Dependency advisory
 
-`npm audit` reported one existing high-severity advisory for the project's
-Zod 3.25.76: [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5).
-The suggested fix is a breaking Zod 4 upgrade. Claim and report repository
-inputs are bounded before shared schema parsing, but that is not a general fix.
-Upgrade and test Zod compatibility, add strict HTTP body limits, and rerun the
-audit before exposing an API to untrusted requests.
+The earlier high-severity Zod 3 advisory (GHSA-mrhx-c7xc-m3w5) is resolved:
+`zod` is 4.6.7 with `@hookform/resolvers` 7.x and `npm audit` reports zero
+vulnerabilities. The API still caps request bodies and bounds collection sizes
+before schema parsing.

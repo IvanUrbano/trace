@@ -54,8 +54,10 @@ async function reviewer(client, actorId, communityId) {
 async function claimSnapshot(client, claimId) {
   const result = await client.query(`
     SELECT c.*, r.community_id, r.title AS item_title, r.owner_id AS finder_id,
-      r.status AS item_status, r.type AS report_type
-    FROM trace.claims c JOIN trace.reports r ON r.id = c.item_id
+      r.status AS item_status, r.type AS report_type, u.display_name AS claimant_name
+    FROM trace.claims c
+    JOIN trace.reports r ON r.id = c.item_id
+    JOIN trace.users u ON u.id = c.claimant_id
     WHERE c.id = $1`, [claimId])
   if (!result.rowCount) fail('not_found', 'Claim not found.')
   return result.rows[0]
@@ -77,8 +79,7 @@ function assertRelatedAvailable(reports, claim) {
 }
 
 function validClaimInput(input) {
-  // Bound collection/string sizes before Zod parsing; the current Zod v3 has
-  // an upstream oversized-collection advisory and there is no HTTP API yet.
+  // Bound collection/string sizes before Zod parsing; the HTTP layer also caps body size.
   if (!input || typeof input !== 'object' || !Array.isArray(input.questions) || input.questions.length > 32 ||
       input.questions.some((q) => !q || typeof q !== 'object' ||
         [q.id, q.question, q.answer].some((value) => typeof value !== 'string' || value.length > 5000)) ||
@@ -95,14 +96,63 @@ function validClaimInput(input) {
 export class PostgresRepository {
   constructor(pool) { this.pool = pool }
 
-  async listPublicReports(communityId, limit = 20) {
+  async ensureCommunity(name) {
+    if (typeof name !== 'string' || !name.trim() || name.length > 120) fail('validation', 'Invalid community name.')
+    const trimmed = name.trim()
+    return transaction(this.pool, async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('trace.community'))")
+      const existing = await client.query('SELECT id FROM trace.communities WHERE name=$1 ORDER BY created_at,id LIMIT 1', [trimmed])
+      if (existing.rowCount) return existing.rows[0].id
+      const created = await client.query('INSERT INTO trace.communities (name) VALUES ($1) RETURNING id', [trimmed])
+      return created.rows[0].id
+    })
+  }
+
+  /** Maps a verified identity (issuer + subject) to a local user and membership. */
+  async ensureUser({ issuer, subject, displayName, communityId, isAdmin = false }) {
+    if (typeof issuer !== 'string' || !issuer.trim() || issuer.length > 500) fail('validation', 'Invalid identity issuer.')
+    if (typeof subject !== 'string' || !subject.trim() || subject.length > 200) fail('validation', 'Invalid identity subject.')
     requireUuid(communityId, 'community ID')
+    const name = (typeof displayName === 'string' && displayName.trim() ? displayName.trim() : 'TRACE member').slice(0, 120)
+    return transaction(this.pool, async (client) => {
+      const upsert = await client.query(`
+        INSERT INTO trace.users (identity_issuer, identity_subject, display_name)
+        VALUES ($1,$2,$3)
+        ON CONFLICT (identity_issuer, identity_subject) DO UPDATE SET display_name=EXCLUDED.display_name
+        RETURNING id`, [issuer.trim(), subject.trim(), name])
+      const userId = upsert.rows[0].id
+      await client.query(`
+        INSERT INTO trace.community_memberships (community_id, user_id, role)
+        VALUES ($1,$2,$3)
+        ON CONFLICT (community_id, user_id) DO UPDATE
+          SET role=CASE WHEN EXCLUDED.role='admin' THEN 'admin' ELSE trace.community_memberships.role END`,
+      [communityId, userId, isAdmin ? 'admin' : 'member'])
+      return userId
+    })
+  }
+
+  async listPublicReports(communityId, options = 20) {
+    requireUuid(communityId, 'community ID')
+    const filters = typeof options === 'number' ? { limit: options } : (options || {})
+    const limit = filters.limit ?? 20
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) fail('validation', 'Limit must be between 1 and 50.')
+    const conditions = ['community_id = $1']
+    const values = [communityId]
+    if (filters.type) { values.push(filters.type); conditions.push(`type = $${values.length}`) }
+    if (filters.category) { values.push(filters.category); conditions.push(`category = $${values.length}`) }
+    if (filters.location) { values.push(filters.location); conditions.push(`lower(btrim(location)) = lower(btrim($${values.length}))`) }
+    if (filters.from) { values.push(filters.from); conditions.push(`report_date >= $${values.length}::date`) }
+    if (filters.to) { values.push(filters.to); conditions.push(`report_date <= $${values.length}::date`) }
+    if (filters.q) {
+      values.push(`%${filters.q.replace(/[%_\\]/g, '\\$&')}%`)
+      conditions.push(`(title ILIKE $${values.length} OR description ILIKE $${values.length})`)
+    }
+    values.push(limit)
     const result = await this.pool.query(`
       SELECT id, community_id, type, title, category, description, location,
         report_date::text AS report_date, status, created_at
-      FROM trace.public_reports WHERE community_id = $1
-      ORDER BY created_at DESC, id DESC LIMIT $2`, [communityId, limit])
+      FROM trace.public_reports WHERE ${conditions.join(' AND ')}
+      ORDER BY created_at DESC, id DESC LIMIT $${values.length}`, values)
     return result.rows
   }
 
@@ -117,9 +167,11 @@ export class PostgresRepository {
 
   async listMyReports(actorId) {
     requireUuid(actorId, 'actor ID')
-    const result = await this.pool.query(`SELECT r.id, r.community_id, r.type, r.title, r.category,
-      r.description, r.location, r.report_date::text AS report_date, r.status, r.created_at, p.reference_details
+    const result = await this.pool.query(`SELECT r.id, r.community_id, r.owner_id, r.type, r.title, r.category,
+      r.description, r.location, r.report_date::text AS report_date, r.status, r.created_at, p.reference_details,
+      u.display_name AS owner_name
       FROM trace.reports r LEFT JOIN trace.report_private_details p ON p.report_id=r.id
+      LEFT JOIN trace.users u ON u.id=r.owner_id
       WHERE r.owner_id=$1 ORDER BY r.created_at DESC,r.id DESC`, [actorId])
     return result.rows
   }
@@ -127,11 +179,14 @@ export class PostgresRepository {
   async listMyClaims(actorId) {
     requireUuid(actorId, 'actor ID')
     const result = await this.pool.query(`SELECT c.id,c.item_id,c.related_lost_report_id,c.statement,c.contact_email,c.status,
-      c.reviewer_note,c.created_at,c.updated_at,
+      c.reviewer_note,c.created_at,c.updated_at,r.title AS item_title,u.display_name AS claimant_name,
       COALESCE(jsonb_agg(jsonb_build_object('id',a.question_key,'question',a.question,'answer',a.answer)
         ORDER BY a.question_key) FILTER (WHERE a.question_key IS NOT NULL), '[]'::jsonb) AS questions
-      FROM trace.claims c LEFT JOIN trace.claim_answers a ON a.claim_id=c.id
-      WHERE c.claimant_id=$1 GROUP BY c.id ORDER BY c.created_at DESC,c.id DESC`, [actorId])
+      FROM trace.claims c
+      LEFT JOIN trace.claim_answers a ON a.claim_id=c.id
+      JOIN trace.reports r ON r.id=c.item_id
+      JOIN trace.users u ON u.id=c.claimant_id
+      WHERE c.claimant_id=$1 GROUP BY c.id,r.title,u.display_name ORDER BY c.created_at DESC,c.id DESC`, [actorId])
     return result.rows
   }
 

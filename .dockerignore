@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.git
+.local-checks
+.env
+.env.*
+*.log
+docs
+public

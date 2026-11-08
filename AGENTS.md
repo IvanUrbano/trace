@@ -31,7 +31,7 @@ TRACE is a lost-and-found application. Its intended workflow is:
 - Matching should help people find candidates. A person decides ownership and records the return.
 - Current priority is local code reliability and a simple Mandaluyong Community Board (posts and announcements only). AWS comes afterward. Shared backend and real authentication remain necessary before real multi-user operation; a static deployment alone does not complete that phase.
 - Mandaluyong is the initial community demo setting. No real city/office partnership or physical custody is implied. Office intake, staff scope, disputes, and authority referral policies are design work, not implemented operations.
-- The user selected PostgreSQL instead of the earlier DynamoDB plan. Amazon RDS for PostgreSQL is a deployment candidate, not an authorized or deployed resource. Review actual account eligibility, costs (including idle database cost), backups, network, and connection limits before provisioning.
+- The user selected PostgreSQL instead of the earlier DynamoDB plan. For deployment the user selected one small EC2 instance running the API and PostgreSQL (Docker Compose with Caddy HTTPS) instead of API Gateway/Lambda plus RDS. No EC2 instance is provisioned. Review the Free plan credits, create a budget alert, and confirm region-specific costs before provisioning. The instance is a single point of failure and needs manual patching and backups.
 
 ## 3. Current state — verified baseline
 
@@ -43,7 +43,9 @@ TRACE is a lost-and-found application. Its intended workflow is:
 - Report, claim, review, handoff, and notification mutations save the next snapshot before changing memory or reporting success. Failed writes leave the old state intact and allow retry; a ref prevents consecutive same-render mutations from using a stale snapshot. Invalid nested saved records show sample data with writes blocked and preserve the raw payload. Loading alone never rewrites the snapshot. Legacy sessions with an unexpected shared ID require sign-in again; sign-out writes a null marker to prevent v1 session resurrection.
 - `/community` is a Mandaluyong Community Board demo with member updates/tips, admin-only announcements, text search/category filters, and author/admin soft removal after confirmation. Posts use separate versioned `trace_community_v1` storage, save before success, and preserve the draft on write failure. There are no seeded engagement counts, comments, votes, or official notices. Posts do not create claims or influence item matching.
 - `src/lib/contract/` defines the shared API contract: statuses, the six-code error model, public/restricted DTO schemas, and request/response schemas. `src/lib/service/domain.ts` is the authoritative mutation layer (identity from actor, claim/handoff rules, notifications/audit, v1→v2 migration); `src/lib/service/types.ts` declares the async `TraceService` interface for the future API. The store is the synchronous demo adapter over the same operations.
-- A separate local PostgreSQL foundation now exists: `backend/postgres/001_initial.sql`, `backend/postgres/repository.mjs`, `scripts/postgres-migrate.mjs`, and `scripts/postgres-test.mjs`. It includes relational reports/private details, claims/answers, handoffs, audit, notifications, community posts, a restricted-field-free public view, partial unique indexes, serializable transactional claim/review/handoff operations, and handoff idempotency. Bounded matching retrieves at most 200 recent same-category found reports in the lost report's community and applies the existing heuristic to public fields. The repository is server-only and expects an actor ID supplied by a future verified session. It is not connected to the React demo, an HTTP API, or AWS. No browser data is imported automatically.
+- A separate local PostgreSQL foundation now exists: `backend/postgres/001_initial.sql`, `backend/postgres/repository.mjs`, `scripts/postgres-migrate.mjs`, and `scripts/postgres-test.mjs`. It includes relational reports/private details, claims/answers, handoffs, audit, notifications, community posts, a restricted-field-free public view, partial unique indexes, serializable transactional claim/review/handoff operations, and handoff idempotency. Bounded matching retrieves at most 200 recent same-category found reports in the lost report's community and applies the existing heuristic to public fields. The repository is server-only and expects an actor ID supplied by a verified session. No browser data is imported automatically.
+- A local HTTP API now exists in `backend/api/`: `jwt.mjs` verifies Cognito access or ID tokens against the pool JWKS with `jose` (issuer, audience, RS256), `app.mjs` holds the route table, bearer authentication, shared Zod request validation, DTO mapping, contract error/HTTP mapping, origin-allowlisted CORS, and a 256 KB body cap, and `server.mjs` wraps Node `http` with graceful shutdown. `PostgresRepository.ensureCommunity` and `ensureUser` map a verified issuer/subject to one local user and a membership; the Cognito `admin` group maps to the `admin` role and never downgrades an existing admin. `scripts/api-test.mjs` covers 16 handler cases with a fake repository and verifier. Routes: `GET /health`, `GET /api/items` (validated discovery filters), `GET /api/items/:id`, `POST /api/reports`, `GET /api/me/reports|claims|matches|notifications`, `POST /api/me/notifications/read`, `POST /api/claims`, `GET /api/admin/review-queue`, `GET /api/admin/claims/:id/evidence`, `POST /api/admin/claims/:id/review`, `POST /api/admin/handoffs` (UUID `Idempotency-Key` required). The API is not deployed and the React app does not call it.
+- `deploy/ec2/` holds the planned single-instance deployment for the chosen EC2 design: `Dockerfile` (Node 24 API image), `docker-compose.yml` (PostgreSQL 18 volume, one-shot migration, API healthcheck, Caddy), `Caddyfile` (automatic HTTPS), `setup.sh` (Docker/Compose/swap on AL2023), and `.env.example`. Root `.dockerignore` keeps the image small. Nothing here has run against AWS; Docker is not installed on the development machine, so the image and compose file are unverified locally.
 - An Amazon Cognito user directory has been manually created in Asia Pacific (Singapore), `ap-southeast-1`, for controlled TRACE testing. It has an `admin` reviewer group and one controlled test user in that group. The React app includes an environment-gated OIDC authorization-code/PKCE session using `react-oidc-context`. Navigation reflects Sign In / My Account / Sign Out; login returns to a validated local destination, and logout clears the local OIDC user then redirects through managed login. Public browsing remains available. In Cognito mode, old demo identities are ignored, report/claim/dashboard/admin routes require sign-in then show an unavailable-online notice, and community is read-only. Cognito groups never grant demo admin privileges. No API Gateway or Lambda integration exists. Resource identifiers remain in ignored local settings. Actual AWS login/logout and allowed sign-out URLs still need verification.
 - `docs/aws-deployment-inventory.md` records the provisioned Cognito configuration, non-sensitive operational decisions, and the remaining integration work. Update it when an AWS resource or material cloud configuration changes.
 - Item status `claim_under_review` was renamed to `awaiting_handoff` (approved, awaiting handoff recording).
@@ -81,7 +83,7 @@ Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use s
 ### Not implemented or not production guarantees
 
 
-- No authenticated HTTP API, server-authorized report/claim workflow, shared application records, or cross-device frontend synchronization is implemented. SPA OIDC sign-in and sign-out work against the real Cognito pool from the deployed Amplify origin (verified 2026-11-08); API token verification remains unverified. The provisioned AWS resources are the Cognito directory and the static Amplify Hosting app; PostgreSQL schema/repository code remains local and is not connected to the browser demo or AWS.
+- No deployed authenticated HTTP API, server-authorized report/claim workflow, shared application records, or cross-device frontend synchronization is implemented. SPA OIDC sign-in and sign-out work against the real Cognito pool from the deployed Amplify origin (verified 2026-11-08); the local API's token verification has not run against the real pool. The provisioned AWS resources are the Cognito directory and the static Amplify Hosting app; the API, PostgreSQL, and EC2 deployment files are local only and not connected to the browser demo or AWS.
 - Demo email separation is a UI/data-consistency feature, not authentication. Anyone can enter the demo admin email.
 - All browser state, including roles, private details, claims, and audit history, can be inspected or changed locally.
 - Client-side guards are not a security boundary and do not solve simultaneous requests from multiple devices.
@@ -91,7 +93,7 @@ Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use s
 - Notifications are in-app records only. There is no email or SMS delivery.
 - The optional report link and reviewer evidence work in the demo, but the browser sends/stores private data locally without a security boundary. Real identity, restricted API responses, concurrent writes, reviewer permissions, and dispute/appeal/custody policies remain unfinished.
 - The demo exposes only one admin login. It cannot review its own claim; testing a separate reviewer currently requires domain fixtures until multiple real admin accounts exist.
-- The high-severity Zod advisory [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) is resolved: `zod` is now 4.6.7 and `npm audit` reports zero vulnerabilities. `@hookform/resolvers` was upgraded to 7.x because the Zod-3-era 3.x resolver produced runtime `ZodError` page errors with Zod 4. HTTP request-size limits are still required before accepting untrusted API requests; the repository bounds report/claim inputs before parsing, but that is not a general remedy.
+- The high-severity Zod advisory [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) is resolved: `zod` is now 4.6.7 and `npm audit` reports zero vulnerabilities. `@hookform/resolvers` was upgraded to 7.x because the Zod-3-era 3.x resolver produced runtime `ZodError` page errors with Zod 4. The local API caps request bodies at 256 KB and bounds collection sizes before schema parsing. That cap is not a substitute for rate limiting, authentication hardening, or a reverse-proxy review in production.
 
 ## 4. Repository map
 
@@ -111,7 +113,12 @@ Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use s
 | `scripts/auth-navigation-test.mjs` | Return-destination and logout URL unit tests |
 | `scripts/auth-browser-test.mjs` | Simulated OIDC browser flow, PKCE, session isolation, redirects, logout, expiry, responsive navigation |
 | `backend/postgres/001_initial.sql` | Initial PostgreSQL schema, constraints, indexes, and public report view |
-| `backend/postgres/repository.mjs` | Server-only PostgreSQL report/claim/review/handoff/notification operations |
+| `backend/postgres/repository.mjs` | Server-only PostgreSQL report/claim/review/handoff/notification operations, identity mapping, and discovery filters |
+| `backend/api/jwt.mjs` | Cognito JWKS token verification (issuer, audience, RS256) via `jose` |
+| `backend/api/app.mjs` | HTTP route table, bearer auth, shared request validation, DTO mapping, error mapping, CORS, body cap |
+| `backend/api/server.mjs` | Node HTTP wrapper, environment configuration, graceful shutdown |
+| `scripts/api-test.mjs` | Handler tests with a fake repository and verifier |
+| `deploy/ec2/` | Planned single-instance deployment: Dockerfile, Compose stack, Caddyfile, setup script, env example |
 | `scripts/postgres-migrate.mjs` | Manually invoked, advisory-locked migration runner |
 | `scripts/postgres-test.mjs` | Local isolated PostgreSQL integration, access, rollback, and concurrency tests |
 | `docs/postgres-local.md` | PostgreSQL local setup, test safety, security limitations, and AWS follow-up |
@@ -208,6 +215,7 @@ npm.cmd run typecheck
 npm.cmd run test:matching
 npm.cmd run test:contract
 npm.cmd run test:reliability
+npm.cmd run test:api
 npm.cmd run test:hero-timeline
 npm.cmd run build
 npm.cmd run preview -- --host 127.0.0.1 --port 4173
@@ -236,6 +244,8 @@ Amplify/Zod update, 2026-11-08: typecheck and production build passed; matching 
 
 Auth verification update, 2026-11-08: build/typecheck, `node --test scripts/auth-navigation-test.mjs` (2/2), reliability (11/11), and `node scripts/auth-browser-test.mjs` passed. The browser suite uses a simulated OIDC provider against the configured dev server, without AWS credentials; desktop/mobile screenshots were inspected. `git diff --check` passed. Real invited-user AWS login/logout remains unverified. The broader suites recorded above were not rerun for this account-navigation change.
 
+Local API update, 2026-11-08: added `backend/api/` and `scripts/api-test.mjs`. Verification: `test:api` 16/16, typecheck, production build, contract 21/21, reliability 11/11, and matching 4/4 passed. PostgreSQL 18.3 ran in an isolated local cluster on a non-default port; migration applied and the integration suite passed 9/9, including the new identity-mapping test (one user per issuer/subject, admin never downgraded, separate community membership). A live smoke run of `backend/api/server.mjs` against that database returned `/health` 200, an empty `/api/items` list, and 401 for missing and invalid tokens. `jose` was added for JWKS verification. Docker is not installed on this machine, so `deploy/ec2/Dockerfile`, `docker-compose.yml`, `Caddyfile`, and `setup.sh` have not been built or run; the Compose file and scripts are unverified. No AWS resource was created.
+
 Statuses: `DONE` means verified; `TODO` means unimplemented; `INVESTIGATE` means inspect/reproduce before choosing a fix. Work in this order unless the user changes priorities.
 
 ### A. Repository and demo handoff
@@ -263,9 +273,10 @@ Statuses: `DONE` means verified; `TODO` means unimplemented; `INVESTIGATE` means
 - [DONE] Make status names explicit and version the v1→v2 browser migration. Existing demo data must not be uploaded automatically; migration tests pass.
 - [DONE] Specify the six API error codes and HTTP mappings. Contract tests pass; local demo success now follows confirmed storage. Server persistence confirmation remains part of backend acceptance.
 - [DONE] Add a local PostgreSQL migration and server-only transactional repository foundation. Acceptance: a dedicated PostgreSQL test database verifies public-field separation, reviewer/community scope, rollback, one approved claim per found/lost report, and idempotent concurrent handoffs. This does not complete HTTP/API/auth integration or production database privileges.
-- [DONE] Upgrade Zod to 4.6.7 (with `@hookform/resolvers` 7.x) and rerun dependency security checks: `npm audit` reports zero vulnerabilities. Request-size limits before JSON/schema parsing are still required before exposing untrusted HTTP requests.
+- [DONE] Upgrade Zod to 4.6.7 (with `@hookform/resolvers` 7.x) and rerun dependency security checks: `npm audit` reports zero vulnerabilities.
+- [DONE] Add the local authenticated HTTP API over the repository. Acceptance: bearer-token verification with issuer/audience/RS256, identity and role derived server-side, shared request schemas, public DTOs with no private fields, contract error/status mapping, CORS allowlist, 256 KB body cap, UUID handoff idempotency, and handler tests with a fake repository. 16 handler tests and a live local smoke run pass. The verifier has not run against the real Cognito pool and the frontend does not call the API.
 
-Proposed minimum API (design to confirm during implementation):
+Proposed minimum API (implemented locally in `backend/api/`; cursor pagination and photo upload remain):
 
 | Operation | Access and acceptance requirement |
 | --- | --- |
@@ -284,23 +295,23 @@ Acceptance for B: typed contracts and domain tests exist, including two-user iso
 ### C. Build the AWS backend
 
 - [DONE] Document the first-version AWS service inventory and distinguish required services from optional expansions in `docs/aws-services.md`. This completes service planning only; no resources are deployed.
-- [TODO] Complete the account cost review: the account owner confirmed a Free plan, remaining credits/expiry, and Singapore region selection on 2026-11-07. Confirm each proposed service is available under that plan and record a region-specific estimate before provisioning RDS or other chargeable resources. Do not promise a zero bill from generic Free Tier limits.
+- [TODO] Complete the account cost review for the chosen EC2 design: the account owner confirmed a Free plan, remaining credits/expiry, and Singapore region selection on 2026-11-07. Confirm EC2, EBS, Elastic IP, and data-transfer costs under that plan and record a region-specific estimate before provisioning. Do not promise a zero bill from generic Free Tier limits.
 - [TODO] Set budget notifications and usage/log retention limits before provisioning. Budget alerts are not a hard spending cap.
-- [TODO] Add reproducible infrastructure configuration. Record chosen region and resource roles in project docs without credentials or private account data.
+- [TODO] Add reproducible infrastructure configuration. The Compose stack in `deploy/ec2/` is the deployment definition but has not been built or run; there is no IaC for the instance, security group, Elastic IP, or DNS. Record chosen region and resource roles in project docs without credentials or private account data.
 - [DONE] Connect SPA navigation and account access to the optional Cognito session. Acceptance: simulated browser checks verify PKCE, intended-page return, old demo-session isolation, logout, expired-session handling, and mobile/tablet navigation. Homepage/browsing remain public. Demo shortcuts are disabled in Cognito mode. This completion covers client behavior only.
-- [TODO] Complete Cognito integration: verify invited-user login/logout against AWS, confirm callback/logout allowlists, and add an API that verifies tokens and derives identity/roles server-side. Replace cloud-route unavailable notices only when authenticated API adapters exist. Never grant admin from an email entered in the UI.
-- [TODO] Implement API Gateway HTTP API and Lambda, with token verification and resource-level authorization in handlers.
-- [TODO] Finalize PostgreSQL query/access patterns, index coverage, cursor pagination, least-privilege roles, TLS, connections, backups, and recovery. Initial relational tables/indexes exist locally; review production queries and RDS compatibility before deployment.
-- [TODO] Use conditional/transactional writes and idempotency for claim approval and handoff. Record audit events with server identity and time; restrict update/delete access.
+- [TODO] Complete Cognito integration: real test-user sign-in and sign-out from the Amplify origin are verified (2026-11-08), but the API has not verified a real Cognito token and callback/logout allowlists for the future EC2 origin are not needed (the API is called with bearer tokens). Replace cloud-route unavailable notices only when authenticated API adapters exist. Never grant admin from an email entered in the UI.
+- [TODO] Provision the EC2 backend: one `t3.micro` AL2023 instance, security group (SSH from owner IP, 80/443 public), Elastic IP, Docker Compose stack, Caddy HTTPS, and the migration container. This replaces the earlier API Gateway/Lambda/RDS plan.
+- [TODO] Finalize production database operation: least-privilege roles, TLS/connection settings, backups (`pg_dump`/snapshots), recovery drills, log retention, cursor pagination, and index review under real query loads. Initial tables/indexes and the Compose database are local only.
+- [TODO] Restrict database update/delete privileges and protect audit events from ordinary application roles. Claim/review/handoff writes are already transactional with server-derived actors and timestamps.
 - [TODO] Store photos in private S3 with constrained uploads, an authorized read strategy, and cleanup of abandoned uploads. Keep image data out of PostgreSQL and localStorage in production.
-- [TODO] Move ranking to the backend, bounded by candidate retrieval. Keep results advisory and exclude unavailable/fulfilled candidates according to the finalized status model.
+- [DONE] Move ranking to the backend with bounded candidate retrieval. `GET /api/me/matches` returns the existing heuristic for the caller's own lost report; results stay advisory and exclude returned items. Thresholds and accuracy claims still require the evaluation work in section E.
 
 Acceptance for C: two real accounts on separate browsers share reports but cannot read each other's restricted data; non-admin review requests are denied; concurrent approvals cannot produce two winners; retries do not duplicate handoffs; data survives reload/device changes; uploads obey access and size rules.
 
 ### D. Connect and deploy the frontend
 
 - [TODO] Replace browser mutations with the API adapter; add real loading/error/retry states, disable repeated submissions, and handle token/session expiry.
-- [TODO] Deploy through Amplify Hosting using the pinned runtime, `npm ci`, `npm run build`, and `dist` artifacts. Configure SPA rewrites and verify direct detail-page refreshes. First deployment exists (2026-11-08, static frontend, root/assets and SPA deep links return 200). The Amplify origin is registered in the Cognito callback/sign-out allowlists and a real test-user sign-in and sign-out succeeded; the API-backed workflow remains outstanding.
+- [DONE] Deploy the static frontend through Amplify Hosting using the pinned runtime, `npm ci`, `npm run build`, and `dist` artifacts, with SPA rewrites and verified deep links. Deployment exists (2026-11-08, root/assets and SPA deep links return 200); the Amplify origin is registered in the Cognito callback/sign-out allowlists and a real test-user sign-in and sign-out succeeded. The API-backed workflow remains outstanding.
 - [TODO] Configure environment-specific public settings, allowed origins, Cognito callbacks/logout URLs, and actual deployment QR origins.
 - [TODO] Run the workflow checks against the deployed test environment using non-sensitive fixtures. Test mobile layout and camera permissions manually when automated coverage is insufficient.
 - [TODO] Document rollback, backup/recovery decisions, logs, and a way to remove test resources. Add custom DNS, WAF, SES/email, or EventBridge only when needed and cost-reviewed.
@@ -317,6 +328,10 @@ Acceptance for D: build is reproducible from GitHub; deep links and login redire
 Acceptance for E: documented dataset source and split, reproducible evaluation, measured results with limits, and no claim that ranking proves ownership.
 
 ## 8. Major-change history
+
+### 2026-11-08 — authenticated local API and EC2 deployment definition
+
+Added `backend/api/` (`jwt.mjs`, `app.mjs`, `server.mjs`) as the local authenticated HTTP layer over `PostgresRepository`: Cognito access/ID token verification through the pool JWKS with `jose` (issuer, audience, RS256), server-derived identity and `admin` role, shared Zod request schemas, public/restricted DTO mapping, contract error-to-HTTP mapping, origin-allowlisted CORS, a 256 KB body cap, and UUID idempotency keys for handoffs. Extended the repository with `ensureCommunity` (advisory-lock select/insert) and `ensureUser` (one user per issuer/subject; admin membership never downgraded), discovery filters on public listing, and claimant/item names on claim reads. Added `deploy/ec2/` (Dockerfile, Docker Compose with PostgreSQL 18 + migration + API healthcheck + Caddy, Caddyfile, AL2023 setup script, env example) and a root `.dockerignore` for the chosen single-instance design, replacing the earlier API Gateway/Lambda/RDS plan. Added `test:api` and `api:start` scripts. Verification: `test:api` 16/16, typecheck, production build, contract 21/21, reliability 11/11, matching 4/4; PostgreSQL 18.3 in an isolated local cluster passed 9/9 including the new identity-mapping test; a live `server.mjs` smoke run returned `/health` 200, an empty `/api/items`, and 401 for missing/invalid tokens. Docker is not installed here, so the image, Compose stack, Caddyfile, and setup script are unverified; no AWS resource was created and the frontend still uses the browser demo store.
 
 ### 2026-11-08 — Amplify Hosting deployment and Zod 4 security upgrade
 

@@ -1,28 +1,26 @@
 # TRACE AWS service inventory
 
-Updated: 2026-11-08. Status: proposed first version; a Cognito user directory exists in Asia Pacific (Singapore) with optional SPA sign-in/account integration. No authenticated API exists yet. PostgreSQL was selected instead of the earlier DynamoDB proposal.
+Updated: 2026-11-08. Status: first-version plan. A Cognito user directory and the static Amplify Hosting frontend exist in Asia Pacific (Singapore). A local authenticated API and PostgreSQL repository are implemented but not deployed. The user selected one small EC2 instance for the API and PostgreSQL instead of API Gateway/Lambda/RDS; no EC2 resource exists yet. PostgreSQL was selected instead of the earlier DynamoDB proposal.
 
-TRACE currently stores demo data in the browser. This plan gives users real accounts, shared reports, protected claim answers, and persistent photos. Use six application services and three supporting services. The implementation roadmap is in [AGENTS.md](../AGENTS.md).
+TRACE currently stores demo data in the browser. This plan gives users real accounts, shared reports, protected claim answers, and persistent photos. The first version uses four application services and three supporting services. The implementation roadmap is in [AGENTS.md](../AGENTS.md).
 
 ## Application services
 
 | AWS service | Simple purpose | How TRACE will use it |
 | --- | --- | --- |
 | [Amplify Hosting](https://docs.aws.amazon.com/amplify/latest/userguide/welcome.html) | Put the website online | Build the React/Vite frontend from GitHub, publish `dist`, and provide HTTPS. Configure SPA rewrites for item and dashboard links. Use Hosting only; an Amplify-generated backend is not required. |
-| [Cognito User Pools](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools.html) | Manage accounts and login | Verified sign-up, sign-in, password recovery, and an admin group. Replace the demo email login. Start by evaluating the Lite plan against the required sign-in experience. |
-| [API Gateway HTTP API](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html) | Provide the website's backend address | Route report, claim, review, and handoff requests to Lambda. Validate Cognito JWTs on protected routes. Public listing routes return only approved public fields. |
-| [Lambda](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html) | Run backend code when requested | Validate reports, check ownership/admin permissions, process claims and handoffs, calculate suggested matches, and create in-app notifications. |
-| [RDS for PostgreSQL](https://aws.amazon.com/rds/postgresql/pricing/) | Store application records | Candidate managed service for reports, claims, notifications, and audit events. Use SQL transactions and unique constraints; design restricted database roles, connection limits, backups, and recovery. Confirm its cost and engine compatibility before provisioning. |
-| [S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html) | Store item photos | A private media bucket with short-lived upload permissions issued by the backend. Store object references in PostgreSQL, not image bytes. Define which listing photos can be viewed publicly through controlled delivery. |
+| [Cognito User Pools](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools.html) | Manage accounts and login | Verified sign-in and an `admin` group. The SPA obtains tokens through authorization code + PKCE; the API verifies them. Start by evaluating the Lite plan against the required sign-in experience. |
+| [Amazon EC2](https://aws.amazon.com/ec2/pricing/) | Run the backend | One `t3.micro` AL2023 instance running Docker Compose: the Node API, PostgreSQL 18, a one-shot migration container, and Caddy for automatic HTTPS. The API validates requests, derives identity and roles from Cognito tokens, and enforces claim/review/handoff rules. |
+| [S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html) | Store item photos | Deferred. Later: a private media bucket with short-lived upload permissions issued by the backend, object references in PostgreSQL, and controlled delivery. Photos stay out of the database. |
 
-These are planned backend responsibilities. The manually created Cognito directory has an `admin` group and the SPA uses OIDC for sign-in, account navigation, and managed-login logout. Cloud mutations remain unavailable, and groups do not grant local demo privileges. API Gateway token checks must be followed by Lambda checks for the requested record and action. An admin group alone does not enforce those checks. Restricted audit permissions do not make the database inherently tamper-proof.
+These are planned backend responsibilities. The manually created Cognito directory has an `admin` group and the SPA uses OIDC for sign-in, account navigation, and managed-login logout. Cloud mutations remain unavailable, and groups do not grant local demo privileges. The API derives the actor and `admin` role from a verified token, then checks the requested record and action. An admin group alone does not enforce those checks. Restricted audit permissions do not make the database inherently tamper-proof.
 
 ## Supporting services
 
 | AWS service | Purpose for TRACE | Initial setup |
 | --- | --- | --- |
-| [IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html) | Control access to AWS resources | Give each runtime/deployment role only the permissions it needs. Cognito manages TRACE users; IAM manages AWS permissions. Never put AWS credentials in the frontend. |
-| [CloudWatch](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html) | Find errors and monitor the backend | Lambda logs, API access logs, error/throttle metrics, and selected alarms. Start with finite log retention, such as 14 days. Exclude tokens, claim answers, and private notes from logs. |
+| [IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html) | Control access to AWS resources | Cognito manages TRACE users; IAM manages AWS permissions. Never put AWS credentials in the frontend. Use an instance role only if the API later needs AWS services. |
+| [CloudWatch](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html) | Find errors and monitor the backend | Ship container logs with finite retention (for example 14 days) and add basic alarms. Exclude tokens, claim answers, and private notes from logs. |
 | [AWS Budgets](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/) | Warn about spending | Configure cost alerts before deploying. Notifications are not a hard spending cap. Monitor credits and actual usage as well. |
 
 ## Request flow
@@ -31,15 +29,13 @@ These are planned backend responsibilities. The manually created Cognito directo
 flowchart TD
     Hosting[Amplify Hosting] -->|Serves React website| Browser[User browser]
     Browser <-->|Sign in and receive tokens| Cognito[Cognito User Pool]
-    Browser -->|HTTPS requests and access token| API[API Gateway HTTP API]
-    API --> Backend[Lambda: validation and permissions]
-    Backend --> DB[PostgreSQL: records and audit]
-    Backend -->|Authorize photo operations| Media[Private S3 media bucket]
-    Browser -->|Constrained, expiring upload permission| Media
-    Backend --> Logs[CloudWatch logs and metrics]
+    Browser -->|HTTPS requests and access token| Caddy[Caddy on EC2: TLS]
+    Caddy --> API[Node API on EC2]
+    API --> DB[PostgreSQL on the same instance]
+    API --> Logs[CloudWatch logs and metrics]
 ```
 
-IAM controls service access; Budgets monitors costs. Browsers will not receive direct database access. S3 upload signatures are temporary permissions, so the backend must constrain object keys, expiry, file type/size, and ownership, and verify uploads before attaching them to reports.
+IAM controls service access; Budgets monitors costs. Browsers never receive database access. When photo upload is added, upload signatures will be temporary permissions, so the backend must constrain object keys, expiry, file type/size, and ownership, and verify uploads before attaching them to reports.
 
 ## Services to defer
 
@@ -52,7 +48,7 @@ IAM controls service access; Budgets monitors costs. Browsers will not receive d
 | WAF, X-Ray, Parameter Store | Additional traffic protection, tracing, or configuration management when justified by actual needs and cost. |
 | SageMaker, Bedrock, Rekognition | No requirement for the current matching algorithm. Evaluate text/image models only after measuring the baseline on labeled examples. |
 
-Current TF-IDF text similarity and category/date/location scoring can run in Lambda. Scores suggest candidates; a human verifies ownership and records the return. We do not need EC2 servers or a continuously running model endpoint for this design.
+Current TF-IDF text similarity and category/date/location scoring runs inside the Node API using bounded candidate retrieval. Scores suggest candidates; a human verifies ownership and records the return.
 
 ## Free Tier and cost assumptions
 
@@ -60,18 +56,17 @@ Free Tier is account-dependent, not a promise that this system will always cost 
 
 - Amplify builds, hosting storage, and data transfer contribute to usage: [pricing](https://aws.amazon.com/amplify/pricing/).
 - Cognito costs depend on feature plan, active users, and messaging; avoid SMS for the initial design: [pricing](https://aws.amazon.com/cognito/pricing/).
-- API requests and Lambda execution consume usage allowances/credits: [API Gateway pricing](https://aws.amazon.com/api-gateway/pricing/), [Lambda pricing](https://aws.amazon.com/lambda/pricing/).
-- RDS may incur compute, storage, backup, and network charges even when the application is idle. Check the actual account, region, and [RDS PostgreSQL pricing](https://aws.amazon.com/rds/postgresql/pricing/) before provisioning.
-- Photo storage, requests, transfer, logs, and alarms need limits: [S3 pricing](https://aws.amazon.com/s3/pricing/), [CloudWatch pricing](https://aws.amazon.com/cloudwatch/pricing/).
+- [EC2](https://aws.amazon.com/ec2/pricing/) compute runs continuously while the instance is on. Check `t3.micro` hourly cost, [EBS](https://aws.amazon.com/ebs/pricing/) volume size, Elastic IP association, and data transfer under the account plan.
+- Photo storage, requests, transfer, logs, and alarms need limits later: [S3 pricing](https://aws.amazon.com/s3/pricing/), [CloudWatch pricing](https://aws.amazon.com/cloudwatch/pricing/).
 
-Use one backend Region, compressed photos, paginated queries, bounded matching candidates, API throttles, and cleanup of abandoned uploads. Set a small budget threshold appropriate to the account. Record an estimate after expected users, photos, and requests are known.
+Use one backend Region, compressed photos, paginated queries, bounded matching candidates, and cleanup of abandoned uploads. Set a small budget threshold appropriate to the account. Record an estimate after expected users, photos, and requests are known.
 
 ## Implementation order
 
 1. **Backend contracts first:** define public/private data, report relationships, statuses, and API operations; place demo access behind a service interface.
-2. **Local backend logic:** implement validation, permission rules, claim approval, handoff consistency, and tests for two-user isolation and concurrent decisions.
+2. **Local backend logic:** implement validation, permission rules, claim approval, handoff consistency, and tests for two-user isolation and concurrent decisions. The repository and authenticated API now exist locally.
 3. **AWS account preparation:** verify plan/Region/costs and configure budget alerts and deployment access.
-4. **Reproducible backend deployment:** add infrastructure configuration, then Cognito, PostgreSQL, S3, API Gateway, Lambda, IAM roles, and CloudWatch. AWS SAM/CloudFormation is a candidate deployment tool; it has not been selected or implemented yet.
+4. **Backend deployment:** provision the EC2 instance, security group, and Elastic IP; deploy the Compose stack with Caddy HTTPS and apply the migration. Infrastructure-as-code is still to be chosen.
 5. **Connect and host:** replace production localStorage operations with API calls, deploy through Amplify, and verify login, private data access, uploads, claims, and handoffs with two real accounts.
 
 No browser demo data should be uploaded automatically. See [aws-starter.md](./aws-starter.md) for rollout notes and [architecture.md](./architecture.md) for the expanded alternative.

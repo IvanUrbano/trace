@@ -183,3 +183,23 @@ test('notifications are scoped to their user', async () => {
   const unreadBobAfter = await pool.query('SELECT count(*)::int AS count FROM trace.notifications WHERE user_id=$1 AND read_at IS NULL', [ids.bob])
   assert.equal(unreadBobAfter.rows[0].count, unreadBobBefore.rows[0].count)
 })
+
+test('verified identity maps to one local user and never loses admin access', async () => {
+  const communityId = await repo.ensureCommunity('Verified identity community')
+  assert.equal(await repo.ensureCommunity('  Verified identity community  '), communityId)
+  const identity = { issuer: 'https://issuer.example', subject: 'subject-1', displayName: 'Ana', communityId }
+  const userId = await repo.ensureUser(identity)
+  assert.equal(await repo.ensureUser({ ...identity, isAdmin: true }), userId)
+  const role = await pool.query('SELECT role FROM trace.community_memberships WHERE community_id=$1 AND user_id=$2', [communityId, userId])
+  assert.equal(role.rows[0].role, 'admin')
+  await repo.ensureUser({ ...identity, isAdmin: false })
+  const roleAfter = await pool.query('SELECT role FROM trace.community_memberships WHERE community_id=$1 AND user_id=$2', [communityId, userId])
+  assert.equal(roleAfter.rows[0].role, 'admin')
+  const otherCommunity = await repo.ensureCommunity('Verified identity community two')
+  assert.equal(await repo.ensureUser({ ...identity, communityId: otherCommunity }), userId)
+  const membership = await pool.query('SELECT role FROM trace.community_memberships WHERE community_id=$1 AND user_id=$2', [otherCommunity, userId])
+  assert.equal(membership.rows[0].role, 'member')
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM trace.users WHERE identity_subject=$1', ['subject-1'])).rows[0].count, 1)
+  await assert.rejects(repo.ensureUser({ ...identity, subject: '  ' }), errorCode('validation'))
+  await assert.rejects(repo.ensureUser({ ...identity, communityId: 'not-a-uuid' }), errorCode('validation'))
+})

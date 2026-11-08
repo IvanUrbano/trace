@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run this script with sudo from the repository root: sudo bash deploy/ec2/setup.sh"
+  exit 1
+fi
+
+if [ ! -f deploy/ec2/docker-compose.yml ]; then
+  echo "Run this script from the repository root."
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  dnf install -y docker
+fi
+systemctl enable --now docker
+
+if ! docker compose version >/dev/null 2>&1; then
+  mkdir -p /usr/libexec/docker/cli-plugins
+  curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+    -o /usr/libexec/docker/cli-plugins/docker-compose
+  chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+fi
+
+if [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+if [ ! -f deploy/ec2/.env ]; then
+  cp deploy/ec2/.env.example deploy/ec2/.env
+  chmod 600 deploy/ec2/.env
+  echo "Created deploy/ec2/.env from the example. Fill in the real values before starting."
+fi
+
+cat <<'EOF'
+
+Next steps:
+  1. Edit deploy/ec2/.env (database password, Cognito pool/client, allowed origin, site address).
+     Use the Elastic IP with sslip.io for SITE_ADDRESS, for example: 203.0.113.10.sslip.io
+  2. Start the stack:  sudo docker compose -f deploy/ec2/docker-compose.yml up -d --build
+  3. Check health:     curl https://<SITE_ADDRESS>/health
+  4. Logs:             sudo docker compose -f deploy/ec2/docker-compose.yml logs -f api caddy
+EOF

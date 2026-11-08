@@ -19,6 +19,8 @@
     "test:local-workflows": "node scripts/local-workflows-test.mjs",
     "db:migrate": "node scripts/postgres-migrate.mjs",
     "test:postgres": "node --test scripts/postgres-test.mjs",
+    "test:api": "node --test scripts/api-test.mjs",
+    "api:start": "node backend/api/server.mjs",
     "test:hero-timeline": "node --test scripts/hero-timeline-test.mjs"
   },
   "dependencies": {
@@ -28,6 +30,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^11.15.0",
     "html5-qrcode": "^2.3.8",
+    "jose": "^6.2.15",
     "lucide-react": "^0.469.0",
     "oidc-client-ts": "^3.5.0",
     "pg": "^8.16.3",
