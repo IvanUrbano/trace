@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
-import { useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 interface ModalProps {
   open: boolean
@@ -12,10 +12,16 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children, className }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+  useEffect(() => {
+    if (!open) return
+    document.body.style.overflow = 'hidden'
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current()
       if (e.key === 'Tab' && panelRef.current) {
         const focusables = panelRef.current.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -31,21 +37,15 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
           first.focus()
         }
       }
-    },
-    [onClose],
-  )
-
-  useEffect(() => {
-    if (!open) return
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
+    }
+    document.addEventListener('keydown', handler)
     const first = panelRef.current?.querySelector<HTMLElement>('button, input, select, textarea')
     first?.focus()
     return () => {
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', handler)
       document.body.style.overflow = ''
     }
-  }, [open, handleKeyDown])
+  }, [open])
 
   return (
     <AnimatePresence>
