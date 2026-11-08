@@ -96,6 +96,9 @@ const makeApp = (repository = createFakeRepository()) => createApp({
   repository,
   verifyToken,
   allowedOrigins: ['https://main.d2oswv5myenb38.amplifyapp.com'],
+  s3: { config: {} },
+  s3Bucket: 'test-bucket',
+  s3PublicBaseUrl: 'https://test-bucket.s3.ap-southeast-1.amazonaws.com/',
 })
 
 const request = (app, { method = 'GET', path, query = {}, headers = {}, body = '' }) => app({
@@ -196,7 +199,7 @@ test('invalid report input returns a validation error', async () => {
 })
 
 test('oversized bodies are rejected before parsing', async () => {
-  const app = createApp({ repository: createFakeRepository(), verifyToken, maxBodyBytes: 32 })
+  const app = createApp({ repository: createFakeRepository(), verifyToken, maxBodyBytes: 32, s3: { config: {} }, s3Bucket: 'test-bucket', s3PublicBaseUrl: 'https://test-bucket.s3.ap-southeast-1.amazonaws.com/' })
   const response = await request(app, {
     method: 'POST', path: '/api/reports', headers: auth('user-token'), body: JSON.stringify({ padding: 'x'.repeat(64) }),
   })
