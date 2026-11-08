@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { claimSchema, type ClaimInput } from '../lib/schemas'
 import { useStore } from '../lib/store'
+import { apiConfigured, submitClaim } from '../lib/api/client'
 import type { Item } from '../lib/types'
 import { Button } from './ui/Button'
 import { Modal } from './ui/Modal'
@@ -17,7 +18,7 @@ const questions = [
 
 export function ClaimForm({ item }: { item: Item }) {
   const [open, setOpen] = useState(false)
-  const { submitClaim, user, toast, items } = useStore()
+  const { submitClaim: submitClaimStore, user, toast, items } = useStore()
   const lostReports = items.filter((report) => report.type === 'lost' && report.status === 'active' && report.ownerId === user?.id)
   const navigate = useNavigate()
 
@@ -32,7 +33,7 @@ export function ClaimForm({ item }: { item: Item }) {
   })
 
   const onSubmit = async (data: ClaimInput) => {
-    const submitted = submitClaim({
+    const draft = {
       itemId: item.id,
       statement: data.statement,
       contactEmail: data.contactEmail,
@@ -42,7 +43,22 @@ export function ClaimForm({ item }: { item: Item }) {
         { id: 'q2', question: questions[1], answer: data.q2 },
         { id: 'q3', question: questions[2], answer: data.q3 },
       ],
-    })
+    }
+
+    if (apiConfigured()) {
+      try {
+        await submitClaim(draft)
+        setOpen(false)
+        toast('Track your claim in the dashboard')
+        navigate('/dashboard?tab=claims')
+      } catch (err: any) {
+        setOpen(false)
+        toast(err.message || 'Claim submission failed.')
+      }
+      return
+    }
+
+    const submitted = submitClaimStore(draft)
     if (!submitted) return
     setOpen(false)
     toast('Track your claim in the dashboard')

@@ -2,10 +2,12 @@ import { Navigate, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { Button } from '../components/ui/Button'
 import { cognitoEnabled, useCognitoSession } from '../lib/cognito'
+import { apiConfigured } from '../lib/api/client'
 
-/** Cloud mutations stay unavailable until the authenticated API exists. */
+/** Cloud mutations go through the live API when configured; otherwise show an unavailable notice. */
 export function CloudAccess({ children, feature }: { children: ReactNode; feature: string }) {
-  return cognitoEnabled ? <AccountPage feature={feature} /> : <>{children}</>
+  if (cognitoEnabled && !apiConfigured()) return <AccountPage feature={feature} />
+  return <>{children}</>
 }
 
 export function AccountPage({ feature }: { feature?: string }) {

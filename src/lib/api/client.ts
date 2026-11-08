@@ -1,4 +1,4 @@
-import type { CreateReportRequest } from '../contract/requests'
+import type { CreateReportRequest, SubmitClaimRequest } from '../contract/requests'
 
 let configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '')
 let accessTokenGetter: (() => string | null) | null = null
@@ -9,6 +9,15 @@ export function apiConfigured(): boolean {
 
 export function setAccessTokenGetter(getter: () => string | null) {
   accessTokenGetter = getter
+}
+
+function queryString(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') search.set(key, value)
+  }
+  const qs = search.toString()
+  return qs ? `?${qs}` : ''
 }
 
 export class ApiError extends Error {
@@ -42,10 +51,11 @@ async function readErrorBody(response: Response): Promise<{ code: string; messag
   }
 }
 
-export async function apiFetch(path: string, options: { method?: string; body?: unknown } = {}): Promise<unknown> {
-  const { method = 'GET', body } = options
+export async function apiFetch(path: string, options: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<unknown> {
+  const { method = 'GET', body, headers: extraHeaders } = options
   const headers: Record<string, string> = { accept: 'application/json' }
   if (body) headers['content-type'] = 'application/json'
+  for (const [key, value] of Object.entries(extraHeaders ?? {})) headers[key] = value
 
   const token = accessTokenGetter ? accessTokenGetter() : null
   if (token) headers.authorization = `Bearer ${token}`
@@ -98,4 +108,88 @@ export async function uploadPhotoToS3(file: File, uploadUrl: string): Promise<vo
     headers: { 'content-type': file.type },
   })
   if (!response.ok) throw new Error(`Photo upload failed with status ${response.status}`)
+}
+
+export async function submitClaim(draft: SubmitClaimRequest): Promise<string> {
+  const result = await apiFetch('/api/claims', { method: 'POST', body: draft })
+  if (!result || typeof result !== 'object' || !('claimId' in result) || typeof (result as { claimId?: unknown }).claimId !== 'string') {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return (result as { claimId: string }).claimId
+}
+
+export async function listMyClaims(): Promise<unknown[]> {
+  const result = await apiFetch('/api/me/claims')
+  if (!result || typeof result !== 'object' || !Array.isArray((result as { claims?: unknown }).claims)) {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return (result as { claims: unknown[] }).claims
+}
+
+export async function listMyReports(): Promise<unknown[]> {
+  const result = await apiFetch('/api/me/reports')
+  if (!result || typeof result !== 'object' || !Array.isArray((result as { items?: unknown }).items)) {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return (result as { items: unknown[] }).items
+}
+
+export async function listMatches(lostReportId: string): Promise<unknown[]> {
+  const result = await apiFetch(`/api/me/matches${queryString({ lostReportId })}`)
+  if (!result || typeof result !== 'object' || !Array.isArray((result as { matches?: unknown }).matches)) {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return (result as { matches: unknown[] }).matches
+}
+
+export async function listNotifications(): Promise<unknown[]> {
+  const result = await apiFetch('/api/me/notifications')
+  if (!result || typeof result !== 'object' || !Array.isArray((result as { notifications?: unknown }).notifications)) {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return (result as { notifications: unknown[] }).notifications
+}
+
+export async function markNotificationsRead(): Promise<number> {
+  const result = await apiFetch('/api/me/notifications/read', { method: 'POST' })
+  if (!result || typeof result !== 'object' || typeof (result as { updated?: unknown }).updated !== 'number') {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return (result as { updated: number }).updated
+}
+
+export async function listReviewQueue(): Promise<unknown[]> {
+  const result = await apiFetch('/api/admin/review-queue')
+  if (!result || typeof result !== 'object' || !Array.isArray((result as { claims?: unknown }).claims)) {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return (result as { claims: unknown[] }).claims
+}
+
+export async function getReviewEvidence(claimId: string): Promise<unknown> {
+  const result = await apiFetch(`/api/admin/claims/${encodeURIComponent(claimId)}/evidence`)
+  if (!result || typeof result !== 'object') {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return result
+}
+
+export async function reviewClaim(claimId: string, decision: 'under_review' | 'approved' | 'rejected', note?: string): Promise<unknown> {
+  const result = await apiFetch(`/api/admin/claims/${encodeURIComponent(claimId)}/review`, {
+    method: 'POST',
+    body: { decision, note },
+  })
+  if (!result || typeof result !== 'object') {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return result
+}
+
+export async function recordHandoff(itemId: string, claimId: string, note: string, idempotencyKey: string): Promise<unknown> {
+  const headers: Record<string, string> = { 'idempotency-key': idempotencyKey }
+  const result = await apiFetch('/api/admin/handoffs', { method: 'POST', body: { itemId, claimId, note }, headers })
+  if (!result || typeof result !== 'object') {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
+  }
+  return result
 }

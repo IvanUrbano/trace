@@ -1,18 +1,68 @@
 import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { ClaimForm } from '../components/ClaimForm'
 import { ClaimStatusBadge } from '../components/ui/StatusBadge'
 import { StatusTimeline } from '../components/StatusTimeline'
 import { Button } from '../components/ui/Button'
 import { useStore } from '../lib/store'
 import { formatDate, relativeTime } from '../lib/utils'
+import { apiConfigured, listMyClaims } from '../lib/api/client'
+import type { Item } from '../lib/types'
 
 export function ClaimPage() {
   const { itemId } = useParams()
-  const { items, claims, user } = useStore()
-  const item = items.find((i) => i.id === itemId)
-  const existing = claims.find((c) => c.itemId === itemId && c.claimantId === user?.id)
+  const { user, items: storeItems, claims: storeClaims } = useStore()
+  const [apiItem, setApiItem] = useState<Item | null>(null)
+  const [apiClaims, setApiClaims] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!apiConfigured()) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        setLoading(true)
+        const [itemRes, claimsRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/items/${itemId}`),
+          listMyClaims(),
+        ])
+        if (cancelled) return
+        if (!itemRes.ok) {
+          setLoading(false)
+          return
+        }
+        const item = await itemRes.json()
+        setApiItem(item as Item)
+        setApiClaims(claimsRes)
+      } catch {
+        setLoading(false)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [itemId])
+
+  if (loading) {
+    return (
+      <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
+        <p className="eyebrow">Claim &amp; Verification</p>
+        <h1 className="h2-section mt-3">Loading…</h1>
+      </main>
+    )
+  }
+
+  const item = apiConfigured() ? apiItem : storeItems.find((i) => i.id === itemId)
+  const existing = apiConfigured()
+    ? apiClaims.find((c: any) => c.itemId === itemId && c.claimantId === user?.id)
+    : storeClaims.find((c) => c.itemId === itemId && c.claimantId === user?.id)
   const claimable = item?.status !== 'returned' && item?.ownerId !== user?.id &&
-    !claims.some((claim) => claim.itemId === itemId && claim.status === 'approved')
+    !apiClaims.some((claim: any) => claim.itemId === itemId && claim.status === 'approved') &&
+    !storeClaims.some((claim) => claim.itemId === itemId && claim.status === 'approved')
 
   if (!item || item.type !== 'found') {
     return (
@@ -45,7 +95,7 @@ export function ClaimPage() {
             </div>
             <p className="mt-3 text-sm leading-relaxed">{existing.statement}</p>
             <dl className="mt-5 space-y-3 rounded-[3px] bg-paper p-4 text-sm">
-              {existing.questions.map((q) => (
+              {existing.questions.map((q: any) => (
                 <div key={q.id}>
                   <dt className="text-xs font-medium uppercase tracking-[0.1em] text-muted">{q.question}</dt>
                   <dd className="mt-0.5 font-medium">{q.answer}</dd>
