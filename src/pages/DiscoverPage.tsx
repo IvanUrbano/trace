@@ -1,6 +1,7 @@
 import { useSearchParams } from 'react-router-dom'
 import { ItemGrid } from '../components/ItemGrid'
 import { SearchFilters, type Filters } from '../components/SearchFilters'
+import { usePublicItems } from '../lib/api/publicItems'
 import { useStore } from '../lib/store'
 import { CATEGORIES, LOCATIONS } from '../lib/types'
 
@@ -38,7 +39,8 @@ export function DiscoverPage() {
     setParams(next, { replace: true })
   }
 
-  const results = (() => {
+  const api = usePublicItems(filters)
+  const localResults = (() => {
     let list = items.filter((i) => i.status !== 'returned' || filters.type === 'all')
     if (filters.type !== 'all') list = list.filter((i) => i.type === filters.type)
     if (filters.category) list = list.filter((i) => i.category === filters.category)
@@ -68,6 +70,7 @@ export function DiscoverPage() {
     }
     return list
   })()
+  const results = api.enabled ? api.items : localResults
 
   return (
     <main className="container-x pb-24 pt-28 lg:pt-32">
@@ -83,7 +86,24 @@ export function DiscoverPage() {
       <SearchFilters filters={filters} onChange={update} resultCount={results.length} />
 
       <div className="mt-10">
-        <ItemGrid items={results} emptyMessage="Nothing matches those filters yet." />
+        {api.enabled && api.loading ? (
+          <div className="grid grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+            {[0, 1, 2].map((index) => (
+              <div key={index} className="animate-pulse">
+                <div className="aspect-[4/3] rounded-[4px] border border-line bg-mist" />
+                <div className="mt-4 h-4 w-2/3 rounded bg-mist" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-mist" />
+              </div>
+            ))}
+          </div>
+        ) : api.enabled && api.error ? (
+          <div className="rounded-[3px] border border-dashed border-line bg-mist/50 px-6 py-16 text-center">
+            <p className="text-base font-medium">{api.error}</p>
+            <p className="mt-2 text-sm text-muted">Check the connection and try again in a moment.</p>
+          </div>
+        ) : (
+          <ItemGrid items={results} emptyMessage="Nothing matches those filters yet." />
+        )}
       </div>
     </main>
   )

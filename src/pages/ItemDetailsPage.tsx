@@ -9,23 +9,38 @@ import { StatusTimeline } from '../components/StatusTimeline'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { useStore } from '../lib/store'
+import { usePublicItem } from '../lib/api/publicItems'
 import { formatDate } from '../lib/utils'
 
 export function ItemDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { items, user, toast, claims } = useStore()
-  const item = items.find((i) => i.id === id)
+  const api = usePublicItem(id)
+  const item = api.enabled ? api.item : items.find((i) => i.id === id)
   const [activeImg, setActiveImg] = useState(0)
   const existingClaim =
     user && item ? claims.find((c) => c.itemId === item.id && c.claimantId === user.id) : undefined
+
+  if (api.enabled && api.loading) {
+    return (
+      <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
+        <p className="eyebrow">Loading</p>
+        <h1 className="h2-section mt-3">Fetching this listing…</h1>
+      </main>
+    )
+  }
 
   if (!item) {
     return (
       <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
         <p className="eyebrow">Not found</p>
         <h1 className="h2-section mt-3">This listing doesn&apos;t exist.</h1>
-        <p className="mt-4 text-muted">It may have been returned or removed.</p>
+        <p className="mt-4 text-muted">
+          {api.enabled && api.error === 'unavailable'
+            ? 'The live listing service could not be reached.'
+            : 'It may have been returned or removed.'}
+        </p>
         <Button asChildLink="/discover" className="mt-8">
           Back to Discover
         </Button>
@@ -127,20 +142,25 @@ export function ItemDetailsPage() {
             </p>
 
             <div className="mt-8 space-y-3">
-              {item.type === 'found' && claimable && !existingClaim && user && (
+              {api.enabled && (
+                <p className="rounded-[3px] border border-line bg-mist px-4 py-3 text-sm">
+                  Live listing from the TRACE server. Claims and handoffs open in the next phase.
+                </p>
+              )}
+              {!api.enabled && item.type === 'found' && claimable && !existingClaim && user && (
                 <ClaimForm item={item} />
               )}
-              {item.type === 'found' && claimable && !user && (
+              {!api.enabled && item.type === 'found' && claimable && !user && (
                 <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
                   Submit a Claim
                 </Button>
               )}
-              {existingClaim && (
+              {!api.enabled && existingClaim && (
                 <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
                   View My Claim
                 </Button>
               )}
-              {item.type === 'lost' && (
+              {!api.enabled && item.type === 'lost' && (
                 <Button
                   asChildLink={`/report?type=found`}
                   size="lg"
@@ -155,12 +175,12 @@ export function ItemDetailsPage() {
                   This item has been returned to its owner.
                 </p>
               )}
-              {item.type === 'found' && !user && (
+              {!api.enabled && item.type === 'found' && !user && (
                 <p className="text-xs text-muted">
                   You can browse as a guest — <Link to="/signin" className="underline underline-offset-4">sign in</Link> to track a claim.
                 </p>
               )}
-              {isOwner && (
+              {!api.enabled && isOwner && (
                 <p className="rounded-[3px] border border-line bg-mist px-4 py-3 text-sm">
                   You reported this item. Manage it from your{' '}
                   <Link to="/dashboard" className="underline underline-offset-4">
