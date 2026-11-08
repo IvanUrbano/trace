@@ -1,5 +1,6 @@
 import http from 'node:http'
 import pg from 'pg'
+import { S3Client } from '@aws-sdk/client-s3'
 import { createApp } from './app.mjs'
 import { createCognitoVerifier } from './jwt.mjs'
 import { PostgresRepository } from '../postgres/repository.mjs'
@@ -15,6 +16,10 @@ if (!env.DATABASE_URL) throw new Error('DATABASE_URL is required')
 if (!env.COGNITO_REGION || !env.COGNITO_USER_POOL_ID || !env.COGNITO_CLIENT_ID) {
   throw new Error('COGNITO_REGION, COGNITO_USER_POOL_ID, and COGNITO_CLIENT_ID are required')
 }
+if (!env.S3_BUCKET) throw new Error('S3_BUCKET is required')
+
+const s3 = new S3Client({ region: env.S3_REGION || env.AWS_REGION || 'ap-southeast-1' })
+const s3PublicBaseUrl = env.S3_PUBLIC_BASE_URL || `https://${env.S3_BUCKET}.s3.${env.S3_REGION || env.AWS_REGION || 'ap-southeast-1'}.amazonaws.com/`
 
 const pool = new pg.Pool({ connectionString: env.DATABASE_URL, max: Number(env.PG_POOL_MAX || 5) })
 const repository = new PostgresRepository(pool)
@@ -23,7 +28,7 @@ const verifyToken = createCognitoVerifier({
   userPoolId: env.COGNITO_USER_POOL_ID,
   clientId: env.COGNITO_CLIENT_ID,
 })
-const app = createApp({ repository, verifyToken, communityName, allowedOrigins, maxBodyBytes })
+const app = createApp({ repository, verifyToken, communityName, allowedOrigins, maxBodyBytes, s3, s3Bucket: env.S3_BUCKET, s3PublicBaseUrl })
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://localhost')

@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CATEGORIES, LOCATIONS } from '../lib/types'
 import { reportSchema, type ReportInput } from '../lib/schemas'
 import { useStore } from '../lib/store'
-import { apiConfigured, submitReport } from '../lib/api/client'
+import { apiConfigured, requestPhotoUpload, submitReport, uploadPhotoToS3 } from '../lib/api/client'
 import { cn } from '../lib/utils'
 import { Button } from './ui/Button'
 
@@ -69,6 +69,7 @@ export function ReportForm({ mode = 'demo' }: ReportFormProps) {
   const initialType = params.get('type') === 'found' ? 'found' : 'lost'
   const [step, setStep] = useState(0)
   const [previews, setPreviews] = useState<string[]>([])
+  const [photoKeys, setPhotoKeys] = useState<string[]>([])
   const [photoError, setPhotoError] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [processingPhotos, setProcessingPhotos] = useState(false)
@@ -111,17 +112,32 @@ export function ReportForm({ mode = 'demo' }: ReportFormProps) {
     processingRef.current = true
     setProcessingPhotos(true)
     try {
-      const urls = await Promise.all(selected.map(preparePhoto))
-      if (mounted.current) setPreviews((current) => [...current, ...urls])
+      const results = await Promise.all(selected.map(async (file) => {
+        const preview = await preparePhoto(file)
+        let objectKey: string | undefined
+        if (cloud) {
+          const presigned = await requestPhotoUpload(file)
+          await uploadPhotoToS3(file, presigned.uploadUrl)
+          objectKey = presigned.objectKey
+        }
+        return { preview, objectKey }
+      }))
+      if (mounted.current) {
+        setPreviews((current) => [...current, ...results.map((r) => r.preview)])
+        setPhotoKeys((current) => [...current, ...results.map((r) => r.objectKey).filter((k): k is string => Boolean(k))])
+      }
     } catch {
-      if (mounted.current) setPhotoError('Could not process a photo. Try a smaller image.')
+      if (mounted.current) setPhotoError('Could not upload a photo. Try a smaller image.')
     } finally {
       processingRef.current = false
       if (mounted.current) setProcessingPhotos(false)
     }
   }
 
-  const removePreview = (idx: number) => setPreviews((p) => p.filter((_, i) => i !== idx))
+  const removePreview = (idx: number) => {
+    setPreviews((p) => p.filter((_, i) => i !== idx))
+    setPhotoKeys((k) => k.filter((_, i) => i !== idx))
+  }
 
   const validateStep = async () => {
     if (step === 0) return trigger(['type', 'title', 'category'])
@@ -152,7 +168,7 @@ export function ReportForm({ mode = 'demo' }: ReportFormProps) {
           location: data.location.trim(),
           date: data.date,
           privateDetails: data.privateDetails?.trim() || undefined,
-          images: [],
+          images: photoKeys,
         })
         navigate(`/items/${id}`)
       } catch (error) {

@@ -3,10 +3,12 @@ import { API_ERROR_HTTP_STATUS, apiError } from '../../src/lib/contract/errors.t
 import {
   createReportRequest,
   handoffRequest,
+  photoUploadRequest,
   publicItemQuery,
   reviewClaimRequest,
   submitClaimRequest,
 } from '../../src/lib/contract/requests.ts'
+import { PutObjectCommand, getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { RepositoryError } from '../postgres/repository.mjs'
 
 const DEFAULT_MAX_BODY_BYTES = 256 * 1024
@@ -23,7 +25,7 @@ class HttpError extends Error {
 const iso = (value) => (value instanceof Date ? value.toISOString() : String(value ?? ''))
 const optional = (key, value) => (value ? { [key]: value } : {})
 
-function toPublicItem(row) {
+function toPublicItem(row, baseUrl) {
   return {
     id: row.id,
     type: row.type,
@@ -33,15 +35,15 @@ function toPublicItem(row) {
     location: row.location,
     date: row.report_date ?? row.date ?? '',
     status: row.status,
-    images: Array.isArray(row.images) ? row.images : [],
+    images: Array.isArray(row.images) ? row.images.map((key) => `${baseUrl}${key}`) : [],
     createdAt: iso(row.created_at),
     timeline: Array.isArray(row.timeline) ? row.timeline : [],
   }
 }
 
-function toRestrictedItem(row, actor) {
+function toRestrictedItem(row, actor, baseUrl) {
   return {
-    ...toPublicItem(row),
+    ...toPublicItem(row, baseUrl),
     ownerId: row.owner_id ?? actor.id,
     ownerName: row.owner_name ?? actor.name ?? '',
     ...optional('privateDetails', row.reference_details ?? row.private_details),
@@ -121,9 +123,15 @@ export function createApp({
   communityName = 'Mandaluyong',
   allowedOrigins = [],
   maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
+  s3,
+  s3Bucket,
+  s3PublicBaseUrl,
 }) {
   if (!repository) throw new Error('createApp requires a repository')
   if (typeof verifyToken !== 'function') throw new Error('createApp requires a token verifier')
+  if (!s3) throw new Error('createApp requires an S3 client')
+  if (!s3Bucket) throw new Error('createApp requires an S3 bucket name')
+  if (!s3PublicBaseUrl) throw new Error('createApp requires an S3 public base URL')
 
   let communityIdPromise = null
   const communityId = () => {
@@ -173,13 +181,30 @@ export function createApp({
           limit: query.limit === undefined ? 20 : Number(query.limit),
         })
         const items = await repository.listPublicReports(await communityId(), parsed)
-        return json(200, { items: items.map(toPublicItem), nextCursor: null })
+        return json(200, { items: items.map((row) => toPublicItem(row, s3PublicBaseUrl)), nextCursor: null })
       },
     },
     {
       method: 'GET',
       pattern: /^\/api\/items\/([^/]+)$/,
-      handler: async ({ params }) => json(200, toPublicItem(await repository.getPublicReport(await communityId(), params[0]))),
+      handler: async ({ params }) => json(200, toPublicItem(await repository.getPublicReport(await communityId(), params[0]), s3PublicBaseUrl)),
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/photos\/presign$/,
+      auth: true,
+      handler: async ({ actor, body }) => {
+        const input = parseWith(photoUploadRequest, parseBody(body))
+        const key = `photos/${actor.id}/${crypto.randomUUID()}/${input.fileName}`
+        const command = new PutObjectCommand({
+          Bucket: s3Bucket,
+          Key: key,
+          ContentType: input.contentType,
+          ContentLength: input.sizeBytes,
+        })
+        const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 })
+        return json(200, { objectKey: key, uploadUrl, expiresAt: new Date(Date.now() + 900 * 1000).toISOString() })
+      },
     },
     {
       method: 'POST',
@@ -197,7 +222,7 @@ export function createApp({
       auth: true,
       handler: async ({ actor }) => {
         const items = await repository.listMyReports(actor.id)
-        return json(200, { items: items.map((row) => toRestrictedItem(row, actor)) })
+        return json(200, { items: items.map((row) => toRestrictedItem(row, actor, s3PublicBaseUrl)) })
       },
     },
     {

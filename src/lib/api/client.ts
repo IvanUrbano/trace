@@ -68,11 +68,34 @@ export async function apiFetch(path: string, options: { method?: string; body?: 
 }
 
 export async function submitReport(draft: CreateReportRequest): Promise<string> {
-  // Photos are processed locally for preview but cloud storage is not connected yet.
-  const body = { ...draft, images: [] }
-  const result = await apiFetch('/api/reports', { method: 'POST', body })
+  // Photos are uploaded to S3 first; the object keys are submitted with the report.
+  const result = await apiFetch('/api/reports', { method: 'POST', body: draft })
   if (!result || typeof result !== 'object' || !('itemId' in result) || typeof (result as { itemId?: unknown }).itemId !== 'string') {
     throw new ApiError(502, 'service_unavailable', 'Unexpected server response.', true)
   }
   return (result as { itemId: string }).itemId
+}
+
+export async function requestPhotoUpload(file: File): Promise<{ objectKey: string; uploadUrl: string; expiresAt: string }> {
+  const result = await apiFetch('/api/photos/presign', {
+    method: 'POST',
+    body: {
+      fileName: file.name,
+      contentType: file.type,
+      sizeBytes: file.size,
+    },
+  })
+  if (!result || typeof result !== 'object' || !('objectKey' in result) || !('uploadUrl' in result)) {
+    throw new ApiError(502, 'service_unavailable', 'Unexpected presign response.', true)
+  }
+  return result as { objectKey: string; uploadUrl: string; expiresAt: string }
+}
+
+export async function uploadPhotoToS3(file: File, uploadUrl: string): Promise<void> {
+  const response = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'content-type': file.type },
+  })
+  if (!response.ok) throw new Error(`Photo upload failed with status ${response.status}`)
 }

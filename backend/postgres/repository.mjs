@@ -149,18 +149,33 @@ export class PostgresRepository {
     }
     values.push(limit)
     const result = await this.pool.query(`
-      SELECT id, community_id, type, title, category, description, location,
-        report_date::text AS report_date, status, created_at
-      FROM trace.public_reports WHERE ${conditions.join(' AND ')}
-      ORDER BY created_at DESC, id DESC LIMIT $${values.length}`, values)
+      SELECT r.id, r.community_id, r.type, r.title, r.category, r.description, r.location,
+        r.report_date::text AS report_date, r.status, r.created_at,
+        COALESCE((
+          SELECT jsonb_agg(m.object_key ORDER BY m.position)
+          FROM trace.report_media m WHERE m.report_id = r.id
+        ), '[]'::jsonb) AS images
+      FROM trace.reports r WHERE ${conditions.join(' AND ')}
+      ORDER BY r.created_at DESC, r.id DESC LIMIT $${values.length}`, values)
     return result.rows
   }
 
   async getPublicReport(communityId, reportId) {
     requireUuid(communityId, 'community ID'); requireUuid(reportId, 'report ID')
-    const result = await this.pool.query(`SELECT id, community_id, type, title, category, description, location,
-      report_date::text AS report_date, status, created_at FROM trace.public_reports
-      WHERE community_id=$1 AND id=$2`, [communityId, reportId])
+    const result = await this.pool.query(`SELECT r.id, r.community_id, r.type, r.title, r.category, r.description, r.location,
+      r.report_date::text AS report_date, r.status, r.created_at,
+      COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', t.id, 'label', t.label, 'description', t.description,
+          'date', t.occurred_at, 'done', t.done) ORDER BY t.occurred_at)
+        FROM trace.report_timeline t WHERE t.report_id = r.id
+      ), '[]'::jsonb) AS timeline,
+      COALESCE((
+        SELECT jsonb_agg(m.object_key ORDER BY m.position)
+        FROM trace.report_media m WHERE m.report_id = r.id
+      ), '[]'::jsonb) AS images
+      FROM trace.public_reports r
+      WHERE r.community_id=$1 AND r.id=$2`, [communityId, reportId])
     if (!result.rowCount) fail('not_found', 'Report not found.')
     return result.rows[0]
   }
@@ -239,7 +254,6 @@ export class PostgresRepository {
       fail('validation', 'Report data is invalid or too large.')
     }
     const draft = parsed(createReportRequest, input)
-    if (draft.images.length) fail('validation', 'Photo uploads are not connected to this repository yet.')
     return transaction(this.pool, async (client) => {
       const result = await client.query(`
         INSERT INTO trace.reports (community_id, owner_id, type, title, category, description, location, report_date, status)
@@ -247,6 +261,10 @@ export class PostgresRepository {
       [communityId, actorId, draft.type, draft.title.trim(), draft.category.trim(), draft.description.trim(), draft.location.trim(), draft.date,
         draft.type === 'lost' ? 'active' : 'unclaimed'])
       const id = result.rows[0].id
+      for (const [position, objectKey] of draft.images.entries()) {
+        await client.query('INSERT INTO trace.report_media (report_id, object_key, position, content_type, size_bytes) VALUES ($1,$2,$3,$4,$5)',
+          [id, objectKey, position, 'image/jpeg', 1])
+      }
       if (draft.privateDetails?.trim()) await client.query('INSERT INTO trace.report_private_details (report_id, reference_details) VALUES ($1,$2)', [id, draft.privateDetails.trim()])
       await client.query('INSERT INTO trace.report_timeline (report_id, label, description, done) VALUES ($1,$2,$3,true)', [id, `Reported ${draft.type}`, 'Report submitted'])
       await client.query('INSERT INTO trace.audit_events (actor_id, action, target_id) VALUES ($1,$2,$3)', [actorId, 'item.reported', id])
