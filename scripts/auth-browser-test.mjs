@@ -60,7 +60,7 @@ try {
   await page.waitForURL(`${base}/account`)
   await page.screenshot({ path: '.local-checks/account-desktop.png' })
   await page.goto(`${base}/admin`)
-  await page.getByText('Reviewer tools is not available online yet.', { exact: false }).waitFor()
+  await page.getByText('Administrator access required.', { exact: false }).waitFor()
   assert.equal(await page.getByText('Review queue.', { exact: true }).count(), 0)
   await page.getByRole('button', { name: 'Sign Out', exact: true }).first().click()
   await page.getByRole('link', { name: 'Finish test logout' }).click()

@@ -1,20 +1,22 @@
 import { ReportForm } from '../components/ReportForm'
 import { useStore } from '../lib/store'
 import { Button } from '../components/ui/Button'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { cognitoEnabled, useCognitoSession } from '../lib/cognito'
 
 export function ReportPage() {
   const session = useCognitoSession()
   const { user } = useStore()
+  const location = useLocation()
+  const returnTo = `/report${location.search}`
 
   if (cognitoEnabled) {
-    if (!session) return <Navigate to="/signin?returnTo=/report" replace />
+    if (!session) return <Navigate to={`/signin?returnTo=${encodeURIComponent(returnTo)}`} replace />
     if (session.auth.isLoading) {
       return <main className="container-x pb-24 pt-32" role="status">Checking your account…</main>
     }
     if (!session.auth.isAuthenticated) {
-      return <Navigate to={`/signin?returnTo=/report`} replace />
+      return <Navigate to={`/signin?returnTo=${encodeURIComponent(returnTo)}`} replace />
     }
     return (
       <main className="container-x pb-24 pt-28 lg:pt-32">
