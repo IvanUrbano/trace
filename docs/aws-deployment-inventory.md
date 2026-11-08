@@ -8,7 +8,7 @@ Updated: 2026-11-08. This is the source of truth for AWS resources that have act
 | --- | --- | --- | --- |
 | Controlled development testing | Asia Pacific (Singapore), `ap-southeast-1` | AWS Free plan; check Billing before every additional service | Cognito directory, static Amplify Hosting frontend, and one EC2 instance running the API and PostgreSQL; the browser demo store remains the source for writes |
 
-The account owner reviewed the remaining credit and Free-plan expiry in AWS Billing on 2026-11-07 and created a monthly cost budget with an 80% actual-spend alert. A single `t3.micro` instance now runs the API and PostgreSQL in Docker Compose (see below). No API Gateway, Lambda, RDS database, S3 bucket, or CloudWatch configuration exists.
+The account owner reviewed the remaining credit and Free-plan expiry in AWS Billing on 2026-11-07 and created a monthly cost budget with an 80% actual-spend alert. A single `t3.micro` instance now runs the API and PostgreSQL in Docker Compose (see below), and an S3 bucket stores public photos. No API Gateway, Lambda, RDS database, or CloudWatch configuration exists.
 
 ## Provisioned services
 
@@ -23,10 +23,10 @@ The account owner reviewed the remaining credit and Free-plan expiry in AWS Bill
 | Runtime | `.nvmrc` / `engines` pin Node 24.15.0; build image Amazon Linux 2023 (default) |
 | Public URL | `https://main.d2oswv5myenb38.amplifyapp.com/` |
 | Environment variables | `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN`, `VITE_API_BASE_URL` (public SPA values, not secrets) |
-| Scope | Static frontend only; no shared records or photo upload yet. Report creation posts to the live EC2 API when `VITE_API_BASE_URL` is set |
+| Scope | Static frontend only; no shared records. Report creation and photo upload post to the live EC2 API when `VITE_API_BASE_URL` is set |
 | SPA rewrite | Applied: `</^[^.]+$|\\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|webp|woff|woff2|ttf|map|json|manifest|webmanifest)$)([^.]+$)/>` → `/index.html` (200); deep links return the app shell. The JSON source needs escaped dots; an earlier unescaped-dot rule also rewrote `/assets/*.js` to HTML (MIME error), and its stale edge cache entry required a redeploy. |
 | Verified | Root document and hashed JS/CSS assets return HTTP 200; `/discover`, `/signin`, `/items/...`, and `/community` return 200 (2026-11-08) |
-| Outstanding | The API-backed workflow |
+| Outstanding | The API-backed workflow for claims/review/handoff |
 
 ### Amazon Cognito User Pools
 
@@ -63,16 +63,16 @@ The account owner reviewed the remaining credit and Free-plan expiry in AWS Bill
 | Secrets | Database password, Cognito settings, and `S3_BUCKET`/`S3_REGION`/`S3_PUBLIC_BASE_URL` in a root-only `deploy/ec2/.env`; never committed |
 | Data | `scripts/seed-demo-reports.sql` inserted seven public demo reports into the `Mandaluyong` community; no accounts, claims, or private data |
 | Verified | `GET /health` returns `{"ok":true}`; `GET /api/items` returns the seeded listings; `POST /api/reports` returns 401 `unauthorized` without a token; report creation with bearer token succeeds (2026-11-08) |
-| Outstanding | Real Cognito token verification against the live pool, claims/review/handoff write adapters, photo orphaned-upload cleanup, community API, backups |
-| Photos | `POST /api/photos/presign` returns a presigned S3 PUT URL; photos are uploaded directly to S3 and object keys stored in `report_media`. Requires an S3 bucket and EC2 instance profile with S3 put/get permissions. |
+| Outstanding | Claims/review/handoff write adapters still browser-demo only, photo orphaned-upload cleanup, community API, backups |
+| Photos | `POST /api/photos/presign` returns a presigned S3 PUT URL; photos are uploaded directly to S3 and object keys stored in `report_media`. End-to-end photo upload verified 2026-11-08: signed-in user submitted a report with a photo and confirmed it renders on the item page and in Discover. Requires an S3 bucket and EC2 instance profile with S3 put/get permissions. |
 
 ## Integration status
 
 The React application has an environment-gated Cognito OIDC session using authorization code with PKCE. It is disabled until ignored local Vite settings provide the user-pool and app-client values. Navigation reflects Sign In / My Account / Sign Out. Login preserves a validated local destination; logout clears the local OIDC user and redirects through the managed-login logout endpoint. The homepage and browsing remain public. In Cognito mode, old demo identities are ignored, report/claim/dashboard/admin routes require login then display an unavailable-online notice, and community is read-only. Tokens and groups do not authorize browser-demo mutations or database operations.
 
-A deployed API now exists at `https://54.254.106.234.sslip.io`. It verifies Cognito access/ID tokens against the pool's JWKS before mapping the identity to a local user and membership; that verification has only been exercised with a fake verifier, not a real token. Public listing routes need no token. `src/lib/api/publicItems.ts` adds an env-gated read-only adapter for Discover and item details, with the browser demo as fallback when `VITE_API_BASE_URL` is unset. The deployed Amplify bundle is not yet configured with that variable, so it still uses the browser demo.
+A deployed API now exists at `https://54.254.106.234.sslip.io`. It verifies Cognito access/ID tokens against the pool's JWKS before mapping the identity to a local user and membership; that verification has only been exercised with a fake verifier and a real signed-in user through the Amplify origin, not against arbitrary tokens. Public listing routes need no token. `src/lib/api/publicItems.ts` adds an env-gated read-only adapter for Discover and item details, with the browser demo as fallback when `VITE_API_BASE_URL` is unset. The deployed Amplify bundle is configured with `VITE_API_BASE_URL` pointing at the EC2 API, so report creation and photo upload flow through the live backend.
 
-Verification on 2026-11-08: build/typecheck, two auth-navigation unit tests, reliability tests 11/11, and a simulated-provider browser flow passed. Browser checks cover old demo-session isolation, PKCE, intended-page return, logout, invalid return URLs, expired sessions, and mobile/tablet navigation. Desktop/mobile screenshots were inspected. A real sign-in with the controlled test user from the deployed Amplify origin succeeded on 2026-11-08; the account required a permanent password set through the Cognito admin API. Sign-out from the deployed origin also works. Invitation delivery and API-backed operations remain unverified.
+Verification on 2026-11-08: build/typecheck, two auth-navigation unit tests, reliability tests 11/11, and a simulated-provider browser flow passed. Browser checks cover old demo-session isolation, PKCE, intended-page return, logout, invalid return URLs, expired sessions, and mobile/tablet navigation. Desktop/mobile screenshots were inspected. A real sign-in with the controlled test user from the deployed Amplify origin succeeded on 2026-11-08; the account required a permanent password set through the Cognito admin API. Sign-out from the deployed origin also works. Report creation with a bearer token and photo upload to S3 were verified end-to-end on 2026-11-08: signed in at the Amplify origin, submitted a report with a photo, confirmed the photo renders on the item page and in Discover. Invitation delivery and API-backed claims/review/handoff operations remain unverified.
 
 ## Required next work
 

@@ -1,17 +1,17 @@
 # TRACE AWS service inventory
 
-Updated: 2026-11-08. Status: first-version plan. A Cognito user directory and the static Amplify Hosting frontend exist in Asia Pacific (Singapore). A local authenticated API and PostgreSQL repository are implemented but not deployed. The user selected one small EC2 instance for the API and PostgreSQL instead of API Gateway/Lambda/RDS; no EC2 resource exists yet. PostgreSQL was selected instead of the earlier DynamoDB proposal.
+Updated: 2026-11-08. Status: first-version plan deployed. A Cognito user directory, the static Amplify Hosting frontend, one EC2 instance running the API and PostgreSQL, and an S3 photo bucket exist in Asia Pacific (Singapore). A local authenticated API and PostgreSQL repository are implemented and deployed.
 
-TRACE currently stores demo data in the browser. This plan gives users real accounts, shared reports, protected claim answers, and persistent photos. The first version uses four application services and three supporting services. The implementation roadmap is in [AGENTS.md](../AGENTS.md).
+TRACE currently stores demo data in the browser for unauthenticated users; authenticated users share reports through the EC2 API with persistent photos. This plan uses four application services and three supporting services. The implementation roadmap is in [AGENTS.md](../AGENTS.md).
 
 ## Application services
 
 | AWS service | Simple purpose | How TRACE will use it |
 | --- | --- | --- |
-| [Amplify Hosting](https://docs.aws.amazon.com/amplify/latest/userguide/welcome.html) | Put the website online | Build the React/Vite frontend from GitHub, publish `dist`, and provide HTTPS. Configure SPA rewrites for item and dashboard links. Use Hosting only; an Amplify-generated backend is not required. |
-| [Cognito User Pools](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools.html) | Manage accounts and login | Verified sign-in and an `admin` group. The SPA obtains tokens through authorization code + PKCE; the API verifies them. Start by evaluating the Lite plan against the required sign-in experience. |
-| [Amazon EC2](https://aws.amazon.com/ec2/pricing/) | Run the backend | One `t3.micro` AL2023 instance running Docker Compose: the Node API, PostgreSQL 18, a one-shot migration container, and Caddy for automatic HTTPS. The API validates requests, derives identity and roles from Cognito tokens, and enforces claim/review/handoff rules. |
-| [S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html) | Store item photos | Deferred. Later: a private media bucket with short-lived upload permissions issued by the backend, object references in PostgreSQL, and controlled delivery. Photos stay out of the database. |
+| [Amplify Hosting](https://docs.aws.amazon.com/amplify/latest/userguide/welcome.html) | Put the website online | Builds the React/Vite frontend from GitHub, publishes `dist`, provides HTTPS, and applies SPA rewrites for item and dashboard links. Environment variables include Cognito pool/client/domain and `VITE_API_BASE_URL`. Hosting only; an Amplify-generated backend is not required. |
+| [Cognito User Pools](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools.html) | Manage accounts and login | Verified sign-in through authorization code + PKCE; the SPA obtains tokens and the API verifies them against the pool JWKS. An `admin` group exists for trusted reviewer accounts. |
+| [Amazon EC2](https://aws.amazon.com/ec2/pricing/) | Run the backend | One `t3.micro` AL2023 instance running Docker Compose: the Node API, PostgreSQL 18, a one-shot migration container, and Caddy for automatic HTTPS. The API validates requests, derives identity and roles from Cognito tokens, and enforces claim/review/handoff rules. Elastic IP `54.254.106.234`; public HTTPS at `https://54.254.106.234.sslip.io`. |
+| [S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html) | Store item photos | Provisioned bucket `trace-photos-ivan-020603` with public-read GetObject policy and CORS allowing `PUT` from the Amplify origin. The API returns presigned PUT URLs (`POST /api/photos/presign`); the frontend uploads directly to S3 and submits object keys with reports. Photos are served in public listings via `S3_PUBLIC_BASE_URL`. |
 
 These are planned backend responsibilities. The manually created Cognito directory has an `admin` group and the SPA uses OIDC for sign-in, account navigation, and managed-login logout. Cloud mutations remain unavailable, and groups do not grant local demo privileges. The API derives the actor and `admin` role from a verified token, then checks the requested record and action. An admin group alone does not enforce those checks. Restricted audit permissions do not make the database inherently tamper-proof.
 
@@ -33,6 +33,7 @@ flowchart TD
     Caddy --> API[Node API on EC2]
     API --> DB[PostgreSQL on the same instance]
     API --> Logs[CloudWatch logs and metrics]
+    API --> S3[S3 photo bucket: presigned PUT uploads]
 ```
 
 IAM controls service access; Budgets monitors costs. Browsers never receive database access. When photo upload is added, upload signatures will be temporary permissions, so the backend must constrain object keys, expiry, file type/size, and ownership, and verify uploads before attaching them to reports.
@@ -44,7 +45,7 @@ IAM controls service access; Budgets monitors costs. Browsers never receive data
 | SES | Application emails such as claim decisions. Begin with in-app notifications; Cognito verification/password-recovery email configuration is a separate requirement. |
 | EventBridge | Background matching or other asynchronous events when the request-based workflow is insufficient. |
 | Route 53 and a custom domain | Use the Amplify default domain initially. Domain registration and DNS can add cost. |
-| Separate CloudFront + website S3 setup | An alternative to Amplify Hosting, not another required hosting layer. The private photo bucket is still needed. |
+| Separate CloudFront + website S3 setup | An alternative to Amplify Hosting, not another required hosting layer. |
 | WAF, X-Ray, Parameter Store | Additional traffic protection, tracing, or configuration management when justified by actual needs and cost. |
 | SageMaker, Bedrock, Rekognition | No requirement for the current matching algorithm. Evaluate text/image models only after measuring the baseline on labeled examples. |
 
