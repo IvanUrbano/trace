@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CATEGORIES, LOCATIONS } from '../lib/types'
 import { reportSchema, type ReportInput } from '../lib/schemas'
 import { useStore } from '../lib/store'
+import { apiConfigured, submitReport } from '../lib/api/client'
 import { cn } from '../lib/utils'
 import { Button } from './ui/Button'
 
@@ -59,12 +60,17 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-1.5 text-xs font-medium text-ink" role="alert">{message}</p>
 }
 
-export function ReportForm() {
+interface ReportFormProps {
+  mode?: 'demo' | 'cloud'
+}
+
+export function ReportForm({ mode = 'demo' }: ReportFormProps) {
   const [params] = useSearchParams()
   const initialType = params.get('type') === 'found' ? 'found' : 'lost'
   const [step, setStep] = useState(0)
   const [previews, setPreviews] = useState<string[]>([])
   const [photoError, setPhotoError] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [processingPhotos, setProcessingPhotos] = useState(false)
   const processingRef = useRef(false)
   const mounted = useRef(true)
@@ -72,6 +78,7 @@ export function ReportForm() {
     mounted.current = true
     return () => { mounted.current = false }
   }, [])
+  const cloud = mode === 'cloud'
   const { addItem } = useStore()
   const navigate = useNavigate()
 
@@ -130,6 +137,35 @@ export function ReportForm() {
 
   const onSubmit = async (data: ReportInput) => {
     if (step !== 2 || processingRef.current) return
+    setSubmitError(null)
+    if (cloud) {
+      if (!apiConfigured()) {
+        setSubmitError('Live reports are not configured yet.')
+        return
+      }
+      try {
+        const id = await submitReport({
+          type: data.type,
+          title: data.title.trim(),
+          category: data.category.trim(),
+          description: data.description.trim(),
+          location: data.location.trim(),
+          date: data.date,
+          privateDetails: data.privateDetails?.trim() || undefined,
+          images: [],
+        })
+        navigate(`/items/${id}`)
+      } catch (error) {
+        if (error instanceof Error) {
+          setSubmitError(
+            error.message || 'Could not submit the report. Please try again.',
+          )
+        } else {
+          setSubmitError('Could not submit the report. Please try again.')
+        }
+      }
+      return
+    }
     const images = previews
     const id = addItem({
       type: data.type,
@@ -305,6 +341,11 @@ export function ReportForm() {
             </label>
             {processingPhotos && <p className="mt-2 text-sm text-muted" role="status">Processing photos… Please wait before continuing.</p>}
             {photoError && <p className="mt-2 text-xs font-medium" role="alert">{photoError}</p>}
+            {cloud && previews.length > 0 && (
+              <p className="mt-2 text-xs text-muted">
+                Photos are processed for preview but aren&apos;t saved with cloud reports yet (coming next phase).
+              </p>
+            )}
             {previews.length > 0 && (
               <ul className="mt-4 grid grid-cols-4 gap-3">
                 {previews.map((src, i) => (
@@ -373,8 +414,10 @@ export function ReportForm() {
             </div>
           </dl>
           <p className="mt-5 text-xs leading-relaxed text-muted">
-            By submitting you confirm this report is accurate. This demo saves report data in your
-            browser. Avoid sensitive information until secure cloud storage is connected.
+            By submitting you confirm this report is accurate.{' '}
+            {cloud
+              ? 'This report is saved to your TRACE account. Photos are not yet saved with cloud reports (coming next phase).'
+              : 'This demo saves report data in your browser. Avoid sensitive information until secure cloud storage is connected.'}
           </p>
         </div>
       )}
@@ -399,6 +442,7 @@ export function ReportForm() {
           </Button>
         )}
       </div>
+      {submitError && <p className="mt-4 text-xs font-medium text-ink" role="alert">{submitError}</p>}
     </form>
   )
 }

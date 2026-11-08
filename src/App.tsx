@@ -5,6 +5,8 @@ import { Footer } from './components/Footer'
 import { Navbar } from './components/Navbar'
 import { NotificationToast } from './components/NotificationToast'
 import { AccountPage, CloudAccess } from './pages/AccountPage'
+import { setAccessTokenGetter } from './lib/api/client'
+import { useCognitoSession } from './lib/cognito'
 const AdminPage = lazy(() => import('./pages/AdminPage').then((module) => ({ default: module.AdminPage })))
 const ClaimPage = lazy(() => import('./pages/ClaimPage').then((module) => ({ default: module.ClaimPage })))
 const CommunityPage = lazy(() => import('./pages/CommunityPage').then((module) => ({ default: module.CommunityPage })))
@@ -49,6 +51,13 @@ function PageTransition({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const location = useLocation()
+  const session = useCognitoSession()
+  useEffect(() => {
+    if (session?.auth?.user) {
+      const token = session.auth.user.access_token ?? null
+      setAccessTokenGetter(() => token)
+    }
+  }, [session?.auth?.user?.access_token])
   return (
     <div className="flex min-h-screen flex-col">
       <ScrollToTop />
