@@ -23,6 +23,19 @@ if ! docker compose version >/dev/null 2>&1; then
   chmod +x /usr/libexec/docker/cli-plugins/docker-compose
 fi
 
+if ! docker buildx version >/dev/null 2>&1; then
+  mkdir -p /usr/libexec/docker/cli-plugins
+  buildx_version="$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
+    | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"
+  if [ -z "$buildx_version" ]; then
+    echo "Could not determine the latest buildx version." >&2
+    exit 1
+  fi
+  curl -fsSL "https://github.com/docker/buildx/releases/download/v${buildx_version}/buildx-v${buildx_version}.linux-amd64" \
+    -o /usr/libexec/docker/cli-plugins/docker-buildx
+  chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
+fi
+
 if [ ! -f /swapfile ]; then
   fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
   chmod 600 /swapfile

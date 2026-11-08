@@ -80,11 +80,14 @@ Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use s
 - Verified after the first deploy: the root document and hashed JS/CSS assets return HTTP 200. The SPA rewrite rule (`</^[^.]+$|\\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|webp|woff|woff2|ttf|map|json|manifest|webmanifest)$)([^.]+$)/>` → `/index.html`, 200) is applied, and direct navigation to `/discover`, `/signin`, `/items/...`, and `/community` returns 200 with the app shell. Use escaped dots in the JSON source; an earlier unescaped-dot pattern also matched `/assets/*.js`, served HTML for module scripts (MIME error), and its stale edge cache entry required a redeploy to invalidate.
 - The deployment is static only. There is no API, database, shared records, photo upload, or server-side authorization. In Cognito mode the deployed app still shows the unavailable-online notices for report/claim/dashboard/admin routes. The Amplify origin is registered in the Cognito app client's callback and sign-out URL allowlists, and a real sign-in and sign-out with the controlled test user completed on 2026-11-08.
 
-### Not implemented or not production guarantees
+### Deployed backend API (2026-11-08)
+
+- One `t3.micro` Amazon Linux 2023 instance runs the `deploy/ec2/` Compose stack: PostgreSQL 18, a one-shot migration container, the Node 24 API, and Caddy for automatic HTTPS. The Elastic IP is `54.254.106.234`; the API is served at `https://54.254.106.234.sslip.io` with a Let's Encrypt certificate obtained through the Caddy HTTP-01 challenge. The security group allows SSH from the owner's IP only and 80/443 from the internet; opening 80 was required for certificate issuance.
+- Verified 2026-11-08: `GET /health` returns `{"ok":true}`, `GET /api/items` returns seeded public reports, and `GET /api/me/reports` returns 401 `unauthorized` without a token. `scripts/seed-demo-reports.sql` inserts seven demo reports (five found, two lost) into the `Mandaluyong` community once; it does not create accounts, claims, or private data.
+- The API verifies Cognito tokens against the real pool JWKS only when a bearer token is supplied; public listing routes need no token. Real-token verification, CORS from the Amplify origin, the write workflow, photo storage, and community posts remain unverified or unimplemented.
 
 
-- No deployed authenticated HTTP API, server-authorized report/claim workflow, shared application records, or cross-device frontend synchronization is implemented. SPA OIDC sign-in and sign-out work against the real Cognito pool from the deployed Amplify origin (verified 2026-11-08); the local API's token verification has not run against the real pool. The provisioned AWS resources are the Cognito directory and the static Amplify Hosting app; the API, PostgreSQL, and EC2 deployment files are local only and not connected to the browser demo or AWS.
-- Demo email separation is a UI/data-consistency feature, not authentication. Anyone can enter the demo admin email.
+- The API and PostgreSQL now run on EC2 and public listing routes are live (verified 2026-11-08). SPA OIDC sign-in and sign-out work against the real Cognito pool from the deployed Amplify origin. Not yet implemented: real-token verification against the pool, any write workflow from the browser (report/claim/review/handoff), photo upload, community API, cross-device session handling, and admin screens in the deployed UI. `src/lib/api/publicItems.ts` can read live listings when `VITE_API_BASE_URL` is set, but the deployed bundle is not yet configured with it.- Demo email separation is a UI/data-consistency feature, not authentication. Anyone can enter the demo admin email.
 - All browser state, including roles, private details, claims, and audit history, can be inspected or changed locally.
 - Client-side guards are not a security boundary and do not solve simultaneous requests from multiple devices.
 - localStorage remains browser-local and user-editable. Save-before-success does not provide cross-tab synchronization, simultaneous-browser conflict resolution, backups, or backend durability. Invalid nested records are preserved but have no repair/export UI yet. Persisted schemas validate shapes; date/reference consistency is not exhaustively reconciled. Items with unmigratable statuses still follow the existing drop policy.
@@ -118,9 +121,11 @@ Homepage surroundings (2026-11-07): hero, How It Works, and Smart Matching use s
 | `backend/api/app.mjs` | HTTP route table, bearer auth, shared request validation, DTO mapping, error mapping, CORS, body cap |
 | `backend/api/server.mjs` | Node HTTP wrapper, environment configuration, graceful shutdown |
 | `scripts/api-test.mjs` | Handler tests with a fake repository and verifier |
-| `deploy/ec2/` | Planned single-instance deployment: Dockerfile, Compose stack, Caddyfile, setup script, env example |
+| `deploy/ec2/` | Single-instance deployment: Dockerfile, Compose stack, Caddyfile, setup script, env example |
 | `scripts/postgres-migrate.mjs` | Manually invoked, advisory-locked migration runner |
 | `scripts/postgres-test.mjs` | Local isolated PostgreSQL integration, access, rollback, and concurrency tests |
+| `scripts/seed-demo-reports.sql` | Idempotent demo community + seven public reports for the deployed API |
+| `src/lib/api/publicItems.ts` | Env-gated read-only public listing adapter (Discover and item details) with local fallback |
 | `docs/postgres-local.md` | PostgreSQL local setup, test safety, security limitations, and AWS follow-up |
 | `src/lib/store.tsx` | Demo identity, persistence (`trace_state_v2`), synchronous adapter over the domain operations, toasts |
 | `src/lib/persistence.ts` | Snapshot loading/save-before-success helpers, invalid-state protection, validated demo session loading |
