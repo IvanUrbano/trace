@@ -1,39 +1,114 @@
-import { useState } from 'react'
-import type { Claim } from '../lib/types'
+import { useState, useEffect } from 'react'
 import { relativeTime } from '../lib/utils'
 import { useStore } from '../lib/store'
 import { ClaimStatusBadge } from './ui/StatusBadge'
 import { Button } from './ui/Button'
 import { Modal } from './ui/Modal'
+import { apiConfigured, listReviewQueue, reviewClaim, recordHandoff, getReviewEvidence } from '../lib/api/client'
 
 export function AdminReviewPanel() {
-  const { claims, items, updateClaimStatus, markReturned, user } = useStore()
-  const [deciding, setDeciding] = useState<{ claim: Claim; action: 'approved' | 'rejected' } | null>(null)
+  const { claims: storeClaims, items: storeItems, user, updateClaimStatus: updateClaimStatusStore, markReturned: markReturnedStore } = useStore()
+  const [deciding, setDeciding] = useState<{ claim: any; action: 'under_review' | 'approved' | 'rejected' } | null>(null)
   const [note, setNote] = useState('')
-  const [handoff, setHandoff] = useState<Claim | null>(null)
+  const [handoff, setHandoff] = useState<any | null>(null)
   const [handoffNote, setHandoffNote] = useState('')
+  const [queue, setQueue] = useState<any[]>([])
+  const [apiItems, setApiItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(apiConfigured())
+  const [evidence, setEvidence] = useState<any>(null)
 
-  const pending = claims.filter((c) => c.status === 'pending' || c.status === 'under_review')
-  const decided = claims.filter((c) => c.status === 'approved' || c.status === 'rejected')
+  useEffect(() => {
+    if (!apiConfigured()) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        setLoading(true)
+        const [q, items] = await Promise.all([listReviewQueue(), fetchItems()])
+        if (cancelled) return
+        setQueue(q)
+        setApiItems(items)
+      } catch {
+        // fall through
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  async function fetchItems(): Promise<any[]> {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/items`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data.items) ? data.items : []
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-10">
+        <section aria-labelledby="pending-claims">
+          <h2 id="pending-claims" className="text-lg font-semibold tracking-tight">
+            Pending claims
+          </h2>
+          <p className="mt-1 text-sm text-muted">Loading review queue…</p>
+        </section>
+      </div>
+    )
+  }
+
+  const pending = apiConfigured() ? queue : storeClaims.filter((c) => c.status === 'pending' || c.status === 'under_review')
+  const decided = apiConfigured() ? queue.filter((c: any) => c.status === 'approved' || c.status === 'rejected') : storeClaims.filter((c) => c.status === 'approved' || c.status === 'rejected')
   const authorized = user?.role === 'admin'
+
+  const allItems = apiConfigured() ? apiItems : storeItems
 
   const closeDecision = () => {
     setDeciding(null)
     setNote('')
+    setEvidence(null)
   }
   const closeHandoff = () => {
     setHandoff(null)
     setHandoffNote('')
   }
 
-  const confirm = () => {
+  const confirm = async () => {
     if (!deciding) return
-    if (!updateClaimStatus(deciding.claim.id, deciding.action, note.trim() || undefined)) return
+    if (apiConfigured()) {
+      try {
+        await reviewClaim(deciding.claim.id, deciding.action, note.trim() || undefined)
+        closeDecision()
+        // Refresh queue
+        const q = await listReviewQueue()
+        setQueue(q)
+      } catch (err: any) {
+        // Error already handled by apiFetch throwing
+        closeDecision()
+      }
+      return
+    }
+    if (!updateClaimStatusStore(deciding.claim.id, deciding.action, note.trim() || undefined)) return
     closeDecision()
   }
 
-  const confirmHandoff = () => {
-    if (!handoff || !markReturned(handoff.itemId, handoff.id, handoffNote)) return
+  const confirmHandoff = async () => {
+    if (!handoff || !handoffNote.trim()) return
+    if (apiConfigured()) {
+      try {
+        await recordHandoff(handoff.itemId, handoff.id, handoffNote, crypto.randomUUID())
+        closeHandoff()
+        const q = await listReviewQueue()
+        setQueue(q)
+      } catch (err: any) {
+        closeHandoff()
+      }
+      return
+    }
+    if (!markReturnedStore(handoff.itemId, handoff.id, handoffNote)) return
     closeHandoff()
   }
 
@@ -53,8 +128,8 @@ export function AdminReviewPanel() {
         ) : (
           <ul className="mt-6 space-y-4">
             {pending.map((claim) => {
-              const item = items.find((i) => i.id === claim.itemId)
-              const linkedLost = items.find((i) => i.id === claim.relatedLostReportId && i.type === 'lost' && i.ownerId === claim.claimantId)
+              const item = allItems.find((i: any) => i.id === claim.itemId)
+              const linkedLost = allItems.find((i: any) => i.id === claim.relatedLostReportId && i.type === 'lost' && i.ownerId === claim.claimantId)
               const canReview = authorized && user?.id !== claim.claimantId
               return (
                 <li key={claim.id} className="rounded-[4px] border border-line bg-paper p-6">
@@ -69,7 +144,7 @@ export function AdminReviewPanel() {
                   </div>
                   <p className="mt-4 text-sm leading-relaxed">{claim.statement}</p>
                   <dl className="mt-4 space-y-2 rounded-[3px] bg-mist/60 p-4 text-sm">
-                    {claim.questions.map((q) => (
+                    {claim.questions.map((q: any) => (
                       <div key={q.id} className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
                         <dt className="w-64 shrink-0 text-xs font-medium uppercase tracking-[0.1em] text-muted">
                           {q.question}
@@ -91,9 +166,18 @@ export function AdminReviewPanel() {
                   <div className="mt-5 flex flex-wrap gap-3">
                     <Button
                       disabled={!canReview}
-                      onClick={() => setDeciding({ claim, action: 'approved' })}
+                      onClick={() => {
+                        if (apiConfigured()) {
+                          getReviewEvidence(claim.id).then((ev: any) => {
+                            setEvidence(ev)
+                            setDeciding({ claim, action: deciding?.action || 'under_review' })
+                          })
+                        } else {
+                          setDeciding({ claim, action: 'under_review' })
+                        }
+                      }}
                     >
-                      Approve Claim
+                      Review Claim
                     </Button>
                     <Button
                       variant="secondary"
@@ -121,8 +205,8 @@ export function AdminReviewPanel() {
           Decided claims
         </h2>
         <ul className="mt-6 space-y-3">
-          {decided.map((claim) => {
-            const item = items.find((i) => i.id === claim.itemId)
+          {decided.map((claim: any) => {
+            const item = allItems.find((i: any) => i.id === claim.itemId)
             const canConfirm = claim.status === 'approved' && item?.status === 'awaiting_handoff'
             return (
               <li key={claim.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-line bg-paper px-5 py-4">
@@ -158,13 +242,39 @@ export function AdminReviewPanel() {
       <Modal
         open={!!deciding}
         onClose={closeDecision}
-        title={deciding?.action === 'approved' ? 'Approve claim' : 'Decline claim'}
+        title={deciding?.action === 'approved' ? 'Approve claim' : deciding?.action === 'rejected' ? 'Decline claim' : 'Review claim'}
       >
-        <p className="text-sm leading-relaxed text-muted">
-          {deciding?.action === 'approved'
-            ? 'Approving confirms the answers appear consistent with ownership. The handoff must still be recorded separately.'
-            : 'Declining closes this claim. The claimant will be notified with your note.'}
-        </p>
+        {apiConfigured() && evidence ? (
+          <>
+            <p className="text-sm leading-relaxed text-muted">
+              Reviewing claim for <strong>{evidence.claim?.itemTitle}</strong>. Compare the finder's reference details with the claimant's linked report details below.
+            </p>
+            {evidence.references.length > 0 && (
+              <div className="mt-4 rounded-[3px] border border-line p-3 text-xs leading-relaxed text-muted">
+                <p className="font-semibold text-ink mb-1">Finder's private reference details:</p>
+                {evidence.references.map((r: any) => <p key={r.reportId} className="mt-1">{r.details}</p>)}
+              </div>
+            )}
+            {evidence.answers.length > 0 && (
+              <div className="mt-4 rounded-[3px] border border-line p-3 text-xs leading-relaxed text-muted">
+                <p className="font-semibold text-ink mb-1">Claimant's ownership answers:</p>
+                {evidence.answers.map((a: any) => (
+                  <div key={a.id} className="mt-1">
+                    <span className="font-medium">{a.question}:</span> {a.answer}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm leading-relaxed text-muted">
+            {deciding?.action === 'approved'
+              ? 'Approving confirms the answers appear consistent with ownership. The handoff must still be recorded separately.'
+              : deciding?.action === 'rejected'
+                ? 'Declining closes this claim. The claimant will be notified with your note.'
+                : 'Review the claim details below before deciding.'}
+          </p>
+        )}
         <label className="mt-5 block text-sm font-medium" htmlFor="admin-note">
           Note (optional)
         </label>
