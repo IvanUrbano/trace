@@ -107,5 +107,6 @@ Initial community setting: Mandaluyong (demo). Matching only suggests candidates
 - Pagination, WAF, custom DNS, multi-AZ/redundancy.
 - Recovery drills and backup verification.
 - Remaining mutations (community API, advanced admin screens) fully live.
+- Address autocomplete for location selection (Nominatim/OpenStreetMap or Google Places).
 - Cursor pagination and index review.
 - CI automation for build/typecheck/matching/browser checks.

@@ -320,6 +320,7 @@ Acceptance for C: two real accounts on separate browsers share reports but canno
 - [DONE] Deploy the static frontend through Amplify Hosting using the pinned runtime, `npm ci`, `npm run build`, and `dist` artifacts, with SPA rewrites and verified deep links. Deployment exists (2026-11-08, root/assets and SPA deep links return 200); the Amplify origin is registered in the Cognito callback/sign-out allowlists and a real test-user sign-in and sign-out succeeded. The API-backed workflow remains outstanding.
 - [DONE] Configure environment-specific public settings, allowed origins, Cognito callbacks/logout URLs, and actual deployment QR origins. The Amplify origin is registered in the Cognito callback/sign-out allowlists.
 - [TODO] Run the workflow checks against the deployed test environment using non-sensitive fixtures. Test mobile layout and camera permissions manually when automated coverage is insufficient.
+- [TODO] Address autocomplete for location selection (Nominatim/OpenStreetMap or Google Places) — deferred; moderate work, requires external API and attribution.
 - [TODO] Document rollback, backup/recovery decisions, logs, and a way to remove test resources. Add custom DNS, WAF, SES/email, or EventBridge only when needed and cost-reviewed.
 
 Acceptance for D: build is reproducible from GitHub; deep links and login redirects work; the deployed workflow uses the backend; errors are actionable; no production mode uses demo admin login or browser storage as authoritative private data.
