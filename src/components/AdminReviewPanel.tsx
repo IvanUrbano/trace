@@ -63,11 +63,16 @@ export function AdminReviewPanel() {
   }
 
   const pending = apiConfigured() ? queue.filter((c: any) => c.status === 'pending' || c.status === 'under_review') : storeClaims.filter((c) => c.status === 'pending' || c.status === 'under_review')
-  const decided = apiConfigured() ? queue.filter((c: any) => c.status === 'approved' || c.status === 'rejected') : storeClaims.filter((c) => c.status === 'approved' || c.status === 'rejected')
+  const decidedRaw = apiConfigured() ? queue.filter((c: any) => c.status === 'approved' || c.status === 'rejected') : storeClaims.filter((c) => c.status === 'approved' || c.status === 'rejected')
   const sessionAdmin = Array.isArray(session?.auth.user?.profile?.['cognito:groups']) && (session?.auth.user?.profile?.['cognito:groups'] as string[]).includes('admin')
   const authorized = apiConfigured() ? sessionAdmin : user?.role === 'admin'
 
   const allItems = apiConfigured() ? apiItems : storeItems
+  // Hide completed handoffs from the decided list once the item is returned.
+  const decided = decidedRaw.filter((claim: any) => {
+    const item = allItems.find((i: any) => i.id === claim.itemId)
+    return !(claim.status === 'approved' && item?.status === 'returned')
+  })
 
   const closeDecision = () => {
     setDeciding(null)
