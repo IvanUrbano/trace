@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { claimSchema, type ClaimInput } from '../lib/schemas'
 import { useStore } from '../lib/store'
-import { apiConfigured, submitClaim } from '../lib/api/client'
+import { useCognitoSession } from '../lib/cognito'
+import { apiConfigured, submitClaim, listMyReports } from '../lib/api/client'
 import type { Item } from '../lib/types'
 import { Button } from './ui/Button'
 import { Modal } from './ui/Modal'
@@ -18,8 +19,21 @@ const questions = [
 
 export function ClaimForm({ item }: { item: Item }) {
   const [open, setOpen] = useState(false)
+  const session = useCognitoSession()
   const { submitClaim: submitClaimStore, user, toast, items } = useStore()
-  const lostReports = items.filter((report) => report.type === 'lost' && report.status === 'active' && report.ownerId === user?.id)
+  const [apiLostReports, setApiLostReports] = useState<any[]>([])
+  useEffect(() => {
+    if (!apiConfigured()) return
+    let cancelled = false
+    listMyReports()
+      .then((res) => { if (!cancelled) setApiLostReports((res as any[]).filter((r) => r.type === 'lost' && r.status === 'active')) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  const lostReports = apiConfigured()
+    ? apiLostReports
+    : items.filter((report) => report.type === 'lost' && report.status === 'active' && report.ownerId === user?.id)
+  const defaultEmail = user?.email ?? (typeof session?.auth.user?.profile.email === 'string' ? session.auth.user.profile.email : '')
   const navigate = useNavigate()
 
   const {
@@ -28,7 +42,7 @@ export function ClaimForm({ item }: { item: Item }) {
     formState: { errors, isSubmitting },
   } = useForm<ClaimInput>({
     resolver: zodResolver(claimSchema),
-    defaultValues: { itemId: item.id, contactEmail: user?.email ?? '' },
+    defaultValues: { itemId: item.id, contactEmail: defaultEmail },
     mode: 'onTouched',
   })
 

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Tag } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { ClaimForm } from '../components/ClaimForm'
@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { useStore } from '../lib/store'
 import { usePublicItem } from '../lib/api/publicItems'
+import { apiConfigured, listMyClaims } from '../lib/api/client'
 import { formatDate } from '../lib/utils'
 
 export function ItemDetailsPage() {
@@ -19,8 +20,20 @@ export function ItemDetailsPage() {
   const api = usePublicItem(id)
   const item = api.enabled ? api.item : items.find((i) => i.id === id)
   const [activeImg, setActiveImg] = useState(0)
-  const existingClaim =
-    user && item ? claims.find((c) => c.itemId === item.id && c.claimantId === user.id) : undefined
+  const [apiClaims, setApiClaims] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!apiConfigured()) return
+    let cancelled = false
+    listMyClaims()
+      .then((res) => { if (!cancelled) setApiClaims(res) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const existingClaim = apiConfigured()
+    ? apiClaims.find((c: any) => c.itemId === id)
+    : (user && item ? claims.find((c) => c.itemId === item.id && c.claimantId === user.id) : undefined)
 
   if (api.enabled && api.loading) {
     return (
@@ -49,9 +62,9 @@ export function ItemDetailsPage() {
   }
 
   const pageUrl = `${window.location.origin}/items/${item.id}`
-  const isOwner = user?.id === item.ownerId
+  const isOwner = apiConfigured() ? false : user?.id === item.ownerId
   const claimable = item.status !== 'returned' && !isOwner &&
-    !claims.some((claim) => claim.itemId === item.id && claim.status === 'approved')
+    !(apiConfigured() ? apiClaims : claims).some((claim: any) => claim.itemId === item.id && claim.status === 'approved')
 
   return (
     <main className="container-x pb-24 pt-28 lg:pt-32">
@@ -142,25 +155,20 @@ export function ItemDetailsPage() {
             </p>
 
             <div className="mt-8 space-y-3">
-              {api.enabled && (
-                <p className="rounded-[3px] border border-line bg-mist px-4 py-3 text-sm">
-                  Live listing from the TRACE server. Claims and handoffs open in the next phase.
-                </p>
-              )}
-              {!api.enabled && item.type === 'found' && claimable && !existingClaim && user && (
+              {item.type === 'found' && claimable && !existingClaim && (apiConfigured() ? true : !!user) && (
                 <ClaimForm item={item} />
               )}
-              {!api.enabled && item.type === 'found' && claimable && !user && (
+              {item.type === 'found' && claimable && !existingClaim && !apiConfigured() && !user && (
                 <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
                   Submit a Claim
                 </Button>
               )}
-              {!api.enabled && existingClaim && (
+              {existingClaim && (
                 <Button asChildLink={`/claim/${item.id}`} size="lg" className="w-full sm:w-auto">
                   View My Claim
                 </Button>
               )}
-              {!api.enabled && item.type === 'lost' && (
+              {item.type === 'lost' && (
                 <Button
                   asChildLink={`/report?type=found`}
                   size="lg"
