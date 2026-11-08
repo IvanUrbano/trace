@@ -70,7 +70,7 @@ export default function App() {
             <Route path="/discover" element={<PageTransition><DiscoverPage /></PageTransition>} />
             <Route path="/community" element={<PageTransition><CommunityPage /></PageTransition>} />
             <Route path="/items/:id" element={<PageTransition><ItemDetailsPage /></PageTransition>} />
-            <Route path="/report" element={<PageTransition><CloudAccess feature="Reporting"><ReportPage /></CloudAccess></PageTransition>} />
+            <Route path="/report" element={<PageTransition><ReportPage /></PageTransition>} />
             <Route path="/claim/:itemId" element={<PageTransition><CloudAccess feature="Claim submission"><ClaimPage /></CloudAccess></PageTransition>} />
             <Route path="/dashboard" element={<PageTransition><CloudAccess feature="Your dashboard"><DashboardPage /></CloudAccess></PageTransition>} />
             <Route path="/admin" element={<PageTransition><CloudAccess feature="Reviewer tools"><AdminPage /></CloudAccess></PageTransition>} />
