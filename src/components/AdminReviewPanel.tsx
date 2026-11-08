@@ -173,14 +173,14 @@ export function AdminReviewPanel() {
                         if (apiConfigured()) {
                           getReviewEvidence(claim.id).then((ev: any) => {
                             setEvidence(ev)
-                            setDeciding({ claim, action: deciding?.action || 'under_review' })
+                            setDeciding({ claim, action: 'approved' })
                           })
                         } else {
-                          setDeciding({ claim, action: 'under_review' })
+                          setDeciding({ claim, action: 'approved' })
                         }
                       }}
                     >
-                      Review Claim
+                      Approve
                     </Button>
                     <Button
                       variant="secondary"
@@ -188,6 +188,22 @@ export function AdminReviewPanel() {
                       onClick={() => setDeciding({ claim, action: 'rejected' })}
                     >
                       Decline
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={!canReview}
+                      onClick={() => {
+                        if (apiConfigured()) {
+                          getReviewEvidence(claim.id).then((ev: any) => {
+                            setEvidence(ev)
+                            setDeciding({ claim, action: 'under_review' })
+                          })
+                        } else {
+                          setDeciding({ claim, action: 'under_review' })
+                        }
+                      }}
+                    >
+                      Mark in review
                     </Button>
                   </div>
                   {!authorized && (
