@@ -45,6 +45,9 @@ services:
       COMMUNITY_NAME: ${COMMUNITY_NAME:-Mandaluyong}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       PG_POOL_MAX: ${PG_POOL_MAX:-5}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
     depends_on:
       db:
         condition: service_healthy
