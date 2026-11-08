@@ -173,7 +173,7 @@ export function HeroSection() {
         </div>
 
         {/* Scroll-responsive question mark */}
-        <div data-testid="hero-stage" className="relative mx-auto h-[380px] w-full max-w-lg sm:h-[460px] lg:h-[520px]">
+        <div data-testid="hero-stage" className="relative mx-auto h-[380px] w-full max-w-lg sm:h-[460px] lg:h-[min(520px,calc(100vh-8rem))]">
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-[6%] inset-y-[5%] rounded-full bg-accentLight/20" />
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-[2%] inset-y-[1%] rounded-full border border-dashed border-accentLight/60" />
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-[18%] bottom-[8%] h-14 rounded-[50%] blur-[6px]" style={{ background: 'radial-gradient(ellipse, rgba(23,25,38,0.24), rgba(23,25,38,0.08) 38%, transparent 70%)' }} />
