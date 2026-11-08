@@ -1,5 +1,5 @@
 import { Bell, ClipboardList, Handshake, LayoutList, PackageSearch } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ClaimStatusBadge, StatusBadge } from '../components/ui/StatusBadge'
 import { Button } from '../components/ui/Button'
@@ -7,6 +7,7 @@ import { useStore } from '../lib/store'
 import { rankFoundMatches } from '../lib/matching'
 import { formatDate, relativeTime } from '../lib/utils'
 import { cn } from '../lib/utils'
+import { apiConfigured, listMyReports, listMyClaims, listMatches, listNotifications, markNotificationsRead } from '../lib/api/client'
 
 const tabs = [
   { id: 'lost', label: 'My Lost Reports', icon: PackageSearch },
@@ -19,10 +20,64 @@ const tabs = [
 type TabId = (typeof tabs)[number]['id']
 
 export function DashboardPage() {
-  const { user, items, notificationsFor, markAllNotificationsRead, itemsByOwner, claimsByUser, signOut } = useStore()
+  const { user, signOut, items, itemsByOwner, claimsByUser, notificationsFor } = useStore()
   const [params, setParams] = useSearchParams()
   const active = (params.get('tab') as TabId) || 'lost'
   const [historyFor, setHistoryFor] = useState<string | null>(null)
+
+  // API mode state
+  const [apiItems, setApiItems] = useState<any[]>([])
+  const [apiClaims, setApiClaims] = useState<any[]>([])
+  const [apiNotifications, setApiNotifications] = useState<any[]>([])
+  const [apiMatchGroups, setApiMatchGroups] = useState<{ lost: any; matches: any[] }[]>([])
+  const [loading, setLoading] = useState(apiConfigured())
+
+  useEffect(() => {
+    if (!apiConfigured()) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        setLoading(true)
+        const [reportsRes, claimsRes, notificationsRes] = await Promise.all([
+          listMyReports(),
+          listMyClaims(),
+          listNotifications(),
+        ])
+        if (cancelled) return
+        setApiItems(reportsRes)
+        setApiClaims(claimsRes)
+        setApiNotifications(notificationsRes)
+
+        // Load matches for each lost report
+        const lostReports = (reportsRes as any[]).filter((r) => r.type === 'lost' && r.status !== 'returned')
+        const groups: { lost: any; matches: any[] }[] = []
+        for (const lost of lostReports) {
+          if (cancelled) return
+          const matches = await listMatches(lost.id)
+          groups.push({ lost, matches })
+        }
+        if (!cancelled) setApiMatchGroups(groups)
+      } catch {
+        // fall through, data stays empty
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) {
+    return (
+      <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
+        <p className="eyebrow">Dashboard</p>
+        <h1 className="h2-section mt-3">Loading…</h1>
+      </main>
+    )
+  }
 
   if (!user) {
     return (
@@ -40,15 +95,17 @@ export function DashboardPage() {
     )
   }
 
-  const myLost = itemsByOwner(user.id).filter((i) => i.type === 'lost')
-  const myFound = itemsByOwner(user.id).filter((i) => i.type === 'found')
-  const myClaims = claimsByUser(user.id)
-  const notes = notificationsFor(user.id)
-  const unread = notes.filter((n) => !n.read).length
+  const myLost = apiConfigured()
+    ? apiItems.filter((i: any) => i.ownerId === user.id && i.type === 'lost')
+    : itemsByOwner(user.id).filter((i) => i.type === 'lost')
+  const myFound = apiConfigured()
+    ? apiItems.filter((i: any) => i.ownerId === user.id && i.type === 'found')
+    : itemsByOwner(user.id).filter((i) => i.type === 'found')
+  const myClaims = apiConfigured() ? apiClaims : claimsByUser(user.id)
+  const notes = apiConfigured() ? apiNotifications : notificationsFor(user.id)
+  const unread = notes.filter((n: any) => !n.read).length
 
-  const matchGroups = myLost
-    .filter((item) => item.status !== 'returned')
-    .map((lost) => ({ lost, matches: rankFoundMatches(lost, items) }))
+  const matchGroups = apiConfigured() ? apiMatchGroups : items.filter((i) => i.type === 'lost' && i.status !== 'returned').map((item: any) => ({ lost: item, matches: rankFoundMatches(item, items) }))
 
   return (
     <main className="container-x pb-24 pt-28 lg:pt-32">
@@ -101,7 +158,7 @@ export function DashboardPage() {
           {active === 'lost' && (
             <div className="space-y-4">
               {myLost.length === 0 && <EmptyState label="No lost reports yet." action="/report?type=lost" />}
-              {myLost.map((item) => (
+              {myLost.map((item: any) => (
                 <ReportRow key={item.id} item={item} onHistory={() => setHistoryFor(historyFor === item.id ? null : item.id)} showHistory={historyFor === item.id} />
               ))}
             </div>
@@ -110,7 +167,7 @@ export function DashboardPage() {
           {active === 'found' && (
             <div className="space-y-4">
               {myFound.length === 0 && <EmptyState label="No found reports yet." action="/report?type=found" />}
-              {myFound.map((item) => (
+              {myFound.map((item: any) => (
                 <ReportRow key={item.id} item={item} onHistory={() => setHistoryFor(historyFor === item.id ? null : item.id)} showHistory={historyFor === item.id} />
               ))}
             </div>
@@ -121,7 +178,7 @@ export function DashboardPage() {
               {myClaims.length === 0 && (
                 <EmptyState label="You haven't submitted any claims." action="/discover?type=found" />
               )}
-              {myClaims.map((c) => (
+              {myClaims.map((c: any) => (
                 <div key={c.id} className="rounded-[4px] border border-line bg-paper p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <Link to={`/items/${c.itemId}`} className="font-semibold tracking-tight hover:underline">
@@ -147,7 +204,7 @@ export function DashboardPage() {
               </p>
               {matchGroups.length === 0 && <EmptyState label="Report a lost item to see possible matches." action="/report?type=lost" />}
               <div className="space-y-8">
-                {matchGroups.map(({ lost, matches }) => (
+                {matchGroups.map(({ lost, matches }: any) => (
                   <section key={lost.id} aria-label={`Matches for ${lost.title}`}>
                     <h2 className="mb-3 text-sm font-semibold">
                       Possible matches for <Link to={`/items/${lost.id}`} className="underline underline-offset-4">{lost.title}</Link>
@@ -158,7 +215,7 @@ export function DashboardPage() {
                       </p>
                     ) : (
                       <div className="space-y-3">
-                        {matches.map(({ item, score, reasons }) => (
+                        {matches.map(({ item, score, reasons }: any) => (
                           <Link
                             key={item.id}
                             to={`/items/${item.id}`}
@@ -187,13 +244,22 @@ export function DashboardPage() {
           {active === 'notifications' && (
             <div>
               <div className="mb-4 flex justify-end">
-                <Button variant="ghost" size="sm" onClick={markAllNotificationsRead} disabled={unread === 0}>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  if (apiConfigured()) {
+                    markNotificationsRead().then(() => {
+                      setApiNotifications(apiNotifications.map((n: any) => ({ ...n, read: true })))
+                    })
+                  } else {
+                    const { markAllNotificationsRead } = useStore()
+                    markAllNotificationsRead()
+                  }
+                }} disabled={unread === 0}>
                   Mark all read
                 </Button>
               </div>
               <ul className="divide-y divide-line overflow-hidden rounded-[4px] border border-line">
                 {notes.length === 0 && <li className="px-5 py-10 text-center text-sm text-muted">No notifications.</li>}
-                {notes.map((n) => (
+                {notes.map((n: any) => (
                   <li key={n.id} className={cn('flex items-start gap-3 px-5 py-4', !n.read && 'bg-mist/50')}>
                     <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', n.read ? 'bg-line' : 'bg-ink')} aria-hidden />
                     <div className="min-w-0">
@@ -228,7 +294,7 @@ function ReportRow({
   onHistory,
   showHistory,
 }: {
-  item: ReturnType<typeof useStore>['items'][number]
+  item: any
   onHistory: () => void
   showHistory: boolean
 }) {
@@ -252,7 +318,7 @@ function ReportRow({
       </button>
       {showHistory && (
         <ul className="mt-3 space-y-2 border-t border-line pt-3">
-          {item.timeline.map((t) => (
+          {item.timeline.map((t: any) => (
             <li key={t.id} className="flex items-center justify-between text-sm">
               <span className={t.done ? 'font-medium' : 'text-muted'}>{t.label}</span>
               <span className="text-xs text-muted">{t.done ? formatDate(t.date) : 'Pending'}</span>
