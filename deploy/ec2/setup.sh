@@ -44,6 +44,17 @@ if [ ! -f /swapfile ]; then
   grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
+# Install cron for automated daily database backups
+if ! command -v crond >/dev/null 2>&1 && ! command -v cron >/dev/null 2>&1; then
+  dnf install -y cronie
+fi
+systemctl enable --now crond
+
+# Add daily 2:00 AM database backup via pg_dump (keeps last 7)
+if ! crontab -l 2>/dev/null | grep -q 'backup-db.sh'; then
+  (crontab -l 2>/dev/null; echo "0 2 * * * cd /opt/trace && /opt/trace/deploy/ec2/backup-db.sh >> /var/log/trace-backup.log 2>&1") | crontab -
+fi
+
 if [ ! -f deploy/ec2/.env ]; then
   cp deploy/ec2/.env.example deploy/ec2/.env
   chmod 600 deploy/ec2/.env
@@ -58,4 +69,5 @@ Next steps:
   2. Start the stack:  sudo docker compose -f deploy/ec2/docker-compose.yml up -d --build
   3. Check health:     curl https://<SITE_ADDRESS>/health
   4. Logs:             sudo docker compose -f deploy/ec2/docker-compose.yml logs -f api caddy
+  5. Backups:          daily pg_dump at 02:00 via cron; run manually with ./deploy/ec2/backup-db.sh
 EOF
