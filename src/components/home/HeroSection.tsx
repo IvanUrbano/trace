@@ -96,20 +96,6 @@ export function HeroSection() {
             that matter.
           </motion.p>
 
-          <motion.div
-            className="mt-9 flex flex-wrap gap-3"
-            initial={reduce ? false : { opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.78, ease: [0.21, 0.6, 0.35, 1] }}
-          >
-            <Button asChildLink="/discover?type=lost" size="lg">
-              Find My Item
-            </Button>
-            <Button asChildLink="/report?type=found" variant="secondary" size="lg">
-              I Found Something
-            </Button>
-          </motion.div>
-
           <motion.p
             className="mt-10 text-sm text-muted"
             initial={reduce ? false : { opacity: 0 }}
@@ -119,6 +105,19 @@ export function HeroSection() {
             Every return is verified. Every handoff is recorded.
           </motion.p>
         </AshLayer>
+        <motion.div
+          className="mt-9 flex flex-wrap gap-3"
+          initial={reduce ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.78, ease: [0.21, 0.6, 0.35, 1] }}
+        >
+          <Button asChildLink="/discover?type=lost" size="lg">
+            Find My Item
+          </Button>
+          <Button asChildLink="/report?type=found" variant="secondary" size="lg">
+            I Found Something
+          </Button>
+        </motion.div>
         {cinematic && (
           <>
             <AshLayer
