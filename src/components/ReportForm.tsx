@@ -3,12 +3,13 @@ import { ImagePlus, Loader2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { CATEGORIES, LOCATIONS } from '../lib/types'
+import { CATEGORIES } from '../lib/types'
 import { reportSchema, type ReportInput } from '../lib/schemas'
 import { useStore } from '../lib/store'
 import { apiConfigured, requestPhotoUpload, submitReport, uploadPhotoToS3 } from '../lib/api/client'
 import { cn } from '../lib/utils'
 import { Button } from './ui/Button'
+import { LocationMapPicker } from './LocationMapPicker'
 
 const steps = ['Basics', 'Details', 'Review'] as const
 const MAX_SOURCE_BYTES = 5_000_000
@@ -73,6 +74,7 @@ export function ReportForm({ mode = 'demo' }: ReportFormProps) {
   const [photoError, setPhotoError] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [processingPhotos, setProcessingPhotos] = useState(false)
+  const [showMap, setShowMap] = useState(false)
   const processingRef = useRef(false)
   const mounted = useRef(true)
   useEffect(() => {
@@ -87,6 +89,7 @@ export function ReportForm({ mode = 'demo' }: ReportFormProps) {
     register,
     handleSubmit,
     watch,
+    setValue,
     trigger,
     formState: { errors, isSubmitting },
   } = useForm<ReportInput>({
@@ -300,19 +303,22 @@ export function ReportForm({ mode = 'demo' }: ReportFormProps) {
               <label htmlFor="location" className="text-sm font-medium">
                 Approximate location
               </label>
-              <select
+              <input
                 id="location"
+                type="text"
                 {...register('location')}
+                placeholder="Approximate location or pin on the map"
                 className="mt-2 w-full rounded-[3px] border border-line bg-paper px-4 py-3 text-sm focus:border-ink"
                 aria-invalid={!!errors.location}
+              />
+              <button
+                type="button"
+                onClick={() => setShowMap((v) => !v)}
+                className="mt-2 text-xs font-medium text-accent underline underline-offset-4"
               >
-                <option value="">Select a location</option>
-                {LOCATIONS.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
+                {showMap ? 'Hide map' : 'Pin on map'}
+              </button>
+              {showMap && <LocationMapPicker value={watch('location')} onChange={(v) => setValue('location', v, { shouldValidate: true })} />}
               <FieldError message={errors.location?.message} />
             </div>
             <div>
