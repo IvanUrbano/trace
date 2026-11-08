@@ -63,8 +63,13 @@ export function Navbar() {
       ? 'border-accentLight/70 bg-accentLight text-ink shadow-sm'
       : 'border-transparent text-paper/85 hover:bg-paper/10 hover:text-paper',
   )
-  const accountLink = session ? (session.auth.isAuthenticated ? '/account' : '/signin') : user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/signin'
-  const accountLabel = session ? (session.auth.isLoading ? 'Checking account…' : session.auth.isAuthenticated ? 'My Account' : 'Sign In') : user ? (user.role === 'admin' ? 'Admin' : 'Dashboard') : 'Sign In'
+  const sessionAdmin = Array.isArray(session?.auth.user?.profile?.['cognito:groups']) && (session?.auth.user?.profile?.['cognito:groups'] as string[]).includes('admin')
+  const accountLink = session
+    ? (session.auth.isAuthenticated ? (sessionAdmin ? '/admin' : '/account') : '/signin')
+    : user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/signin'
+  const accountLabel = session
+    ? (session.auth.isLoading ? 'Checking account…' : session.auth.isAuthenticated ? (sessionAdmin ? 'Admin' : 'My Account') : 'Sign In')
+    : user ? (user.role === 'admin' ? 'Admin' : 'Dashboard') : 'Sign In'
   const logout = session?.auth.isAuthenticated && (
     <button type="button" className={linkClass(false)} disabled={session.busy} onClick={() => void session.logout()}>
       {session.busy ? 'Signing out…' : 'Sign Out'}

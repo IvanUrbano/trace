@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { relativeTime } from '../lib/utils'
 import { useStore } from '../lib/store'
+import { useCognitoSession } from '../lib/cognito'
 import { ClaimStatusBadge } from './ui/StatusBadge'
 import { Button } from './ui/Button'
 import { Modal } from './ui/Modal'
@@ -8,6 +9,7 @@ import { apiConfigured, listReviewQueue, reviewClaim, recordHandoff, getReviewEv
 
 export function AdminReviewPanel() {
   const { claims: storeClaims, items: storeItems, user, updateClaimStatus: updateClaimStatusStore, markReturned: markReturnedStore } = useStore()
+  const session = useCognitoSession()
   const [deciding, setDeciding] = useState<{ claim: any; action: 'under_review' | 'approved' | 'rejected' } | null>(null)
   const [note, setNote] = useState('')
   const [handoff, setHandoff] = useState<any | null>(null)
@@ -60,9 +62,10 @@ export function AdminReviewPanel() {
     )
   }
 
-  const pending = apiConfigured() ? queue : storeClaims.filter((c) => c.status === 'pending' || c.status === 'under_review')
+  const pending = apiConfigured() ? queue.filter((c: any) => c.status === 'pending' || c.status === 'under_review') : storeClaims.filter((c) => c.status === 'pending' || c.status === 'under_review')
   const decided = apiConfigured() ? queue.filter((c: any) => c.status === 'approved' || c.status === 'rejected') : storeClaims.filter((c) => c.status === 'approved' || c.status === 'rejected')
-  const authorized = user?.role === 'admin'
+  const sessionAdmin = Array.isArray(session?.auth.user?.profile?.['cognito:groups']) && (session?.auth.user?.profile?.['cognito:groups'] as string[]).includes('admin')
+  const authorized = apiConfigured() ? sessionAdmin : user?.role === 'admin'
 
   const allItems = apiConfigured() ? apiItems : storeItems
 
@@ -142,9 +145,9 @@ export function AdminReviewPanel() {
                     </div>
                     <ClaimStatusBadge status={claim.status} />
                   </div>
-                  <p className="mt-4 text-sm leading-relaxed">{claim.statement}</p>
+                  <p className="mt-4 text-sm leading-relaxed">{claim.statement ?? ''}</p>
                   <dl className="mt-4 space-y-2 rounded-[3px] bg-mist/60 p-4 text-sm">
-                    {claim.questions.map((q: any) => (
+                    {(claim.questions ?? []).map((q: any) => (
                       <div key={q.id} className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
                         <dt className="w-64 shrink-0 text-xs font-medium uppercase tracking-[0.1em] text-muted">
                           {q.question}
@@ -249,13 +252,13 @@ export function AdminReviewPanel() {
             <p className="text-sm leading-relaxed text-muted">
               Reviewing claim for <strong>{evidence.claim?.itemTitle}</strong>. Compare the finder's reference details with the claimant's linked report details below.
             </p>
-            {evidence.references.length > 0 && (
+            {(evidence.references ?? []).length > 0 && (
               <div className="mt-4 rounded-[3px] border border-line p-3 text-xs leading-relaxed text-muted">
                 <p className="font-semibold text-ink mb-1">Finder's private reference details:</p>
                 {evidence.references.map((r: any) => <p key={r.reportId} className="mt-1">{r.details}</p>)}
               </div>
             )}
-            {evidence.answers.length > 0 && (
+            {(evidence.answers ?? []).length > 0 && (
               <div className="mt-4 rounded-[3px] border border-line p-3 text-xs leading-relaxed text-muted">
                 <p className="font-semibold text-ink mb-1">Claimant's ownership answers:</p>
                 {evidence.answers.map((a: any) => (

@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ClaimStatusBadge, StatusBadge } from '../components/ui/StatusBadge'
 import { Button } from '../components/ui/Button'
 import { useStore } from '../lib/store'
+import { useCognitoSession } from '../lib/cognito'
 import { rankFoundMatches } from '../lib/matching'
 import { formatDate, relativeTime } from '../lib/utils'
 import { cn } from '../lib/utils'
@@ -21,6 +22,8 @@ type TabId = (typeof tabs)[number]['id']
 
 export function DashboardPage() {
   const { user, signOut, items, itemsByOwner, claimsByUser, notificationsFor } = useStore()
+  const session = useCognitoSession()
+  const cognitoMode = Boolean(session)
   const [params, setParams] = useSearchParams()
   const active = (params.get('tab') as TabId) || 'lost'
   const [historyFor, setHistoryFor] = useState<string | null>(null)
@@ -79,7 +82,7 @@ export function DashboardPage() {
     )
   }
 
-  if (!user) {
+  if (cognitoMode && !session!.auth.isAuthenticated) {
     return (
       <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
         <p className="eyebrow">Dashboard</p>
@@ -95,14 +98,33 @@ export function DashboardPage() {
     )
   }
 
+  if (!cognitoMode && !user) {
+    return (
+      <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
+        <p className="eyebrow">Dashboard</p>
+        <h1 className="h2-section mt-3">Sign in to view your dashboard.</h1>
+        <p className="mt-4 max-w-md text-muted">
+          Track your lost and found reports, claims, possible matches, and notifications in one
+          place.
+        </p>
+        <Button asChildLink="/signin" className="mt-8">
+          Sign In
+        </Button>
+      </main>
+    )
+  }
+
+  const displayName = cognitoMode
+    ? (typeof session!.auth.user?.profile.email === 'string' ? session!.auth.user.profile.email : 'your TRACE account')
+    : (user?.name ?? 'your TRACE account')
   const myLost = apiConfigured()
-    ? apiItems.filter((i: any) => i.ownerId === user.id && i.type === 'lost')
-    : itemsByOwner(user.id).filter((i) => i.type === 'lost')
+    ? apiItems.filter((i: any) => i.type === 'lost')
+    : user ? itemsByOwner(user.id).filter((i) => i.type === 'lost') : []
   const myFound = apiConfigured()
-    ? apiItems.filter((i: any) => i.ownerId === user.id && i.type === 'found')
-    : itemsByOwner(user.id).filter((i) => i.type === 'found')
-  const myClaims = apiConfigured() ? apiClaims : claimsByUser(user.id)
-  const notes = apiConfigured() ? apiNotifications : notificationsFor(user.id)
+    ? apiItems.filter((i: any) => i.type === 'found')
+    : user ? itemsByOwner(user.id).filter((i) => i.type === 'found') : []
+  const myClaims = apiConfigured() ? apiClaims : (user ? claimsByUser(user.id) : [])
+  const notes = apiConfigured() ? apiNotifications : (user ? notificationsFor(user.id) : [])
   const unread = notes.filter((n: any) => !n.read).length
 
   const matchGroups = apiConfigured() ? apiMatchGroups : items.filter((i) => i.type === 'lost' && i.status !== 'returned').map((item: any) => ({ lost: item, matches: rankFoundMatches(item, items) }))
@@ -112,17 +134,17 @@ export function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">Dashboard</p>
-          <h1 className="h2-section mt-3">Welcome back, {user.name.split(' ')[0]}.</h1>
+            <h1 className="h2-section mt-3">Welcome back, {displayName.split(' ')[0]}.</h1>
         </div>
         <div className="flex gap-3">
-          {user.role === 'admin' && (
+          {(user?.role === 'admin' || (Array.isArray(session?.auth.user?.profile?.['cognito:groups']) && (session?.auth.user?.profile?.['cognito:groups'] as string[]).includes('admin'))) && (
             <Button asChildLink="/admin" variant="secondary">
               Admin
             </Button>
           )}
           <Button asChildLink="/report">New Report</Button>
-          <Button variant="ghost" onClick={signOut}>
-            Sign Out
+          <Button variant="ghost" onClick={cognitoMode ? () => void session!.logout() : signOut} disabled={cognitoMode && session!.busy}>
+            {cognitoMode && session!.busy ? 'Signing out…' : 'Sign Out'}
           </Button>
         </div>
       </div>

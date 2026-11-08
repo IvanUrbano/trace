@@ -4,10 +4,76 @@ import { AuditLog } from '../components/AuditLog'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { Button } from '../components/ui/Button'
 import { useStore } from '../lib/store'
+import { useCognitoSession } from '../lib/cognito'
 import { formatDate } from '../lib/utils'
 
 export function AdminPage() {
-  const { user, items, signOut } = useStore()
+  const store = useStore()
+  const session = useCognitoSession()
+  const cognitoMode = Boolean(session)
+  const { user, items, signOut } = store
+
+  if (cognitoMode) {
+    if (!session!.auth.isAuthenticated) {
+      return (
+        <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
+          <p className="eyebrow">Admin</p>
+          <h1 className="h2-section mt-3">Sign in to open reviewer tools.</h1>
+          <Button asChildLink="/signin" className="mt-8">
+            Sign In
+          </Button>
+        </main>
+      )
+    }
+    const name = typeof session!.auth.user?.profile.email === 'string' ? session!.auth.user.profile.email : 'your TRACE account'
+    const groups = session!.auth.user?.profile?.['cognito:groups']
+    const isAdminSession = Array.isArray(groups) && (groups as string[]).includes('admin')
+    if (!isAdminSession) {
+      return (
+        <main className="container-x flex min-h-[60vh] flex-col items-center justify-center pb-24 pt-28 text-center">
+          <p className="eyebrow">Admin</p>
+          <h1 className="h2-section mt-3">Administrator access required.</h1>
+          <p className="mt-4 max-w-md text-muted">
+            Reviewer access is granted by your TRACE account group. Contact an administrator if
+            you need reviewer permissions.
+          </p>
+          <Button asChildLink="/discover" className="mt-8">
+            Browse Items
+          </Button>
+        </main>
+      )
+    }
+    return (
+      <main className="container-x pb-24 pt-28 lg:pt-32">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow">Admin</p>
+            <h1 className="h2-section mt-3">Review queue.</h1>
+            <p className="mt-3 max-w-xl text-sm text-muted">
+              Signed in as {name}. Ownership is never approved automatically — every decision
+              is made here and recorded in the audit log.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button asChildLink="/dashboard" variant="secondary">
+              User Dashboard
+            </Button>
+            <Button variant="ghost" disabled={session!.busy} onClick={() => void session!.logout()}>
+              {session!.busy ? 'Signing out…' : 'Sign Out'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-12">
+          <AdminReviewPanel />
+        </div>
+
+        <div className="mt-16">
+          <AuditLog />
+        </div>
+      </main>
+    )
+  }
 
   if (!user || user.role !== 'admin') {
     return (

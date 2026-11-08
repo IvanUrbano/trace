@@ -222,11 +222,14 @@ export class PostgresRepository {
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) fail('validation', 'Limit must be between 1 and 50.')
     return transaction(this.pool, async (client) => {
       await reviewer(client, actorId, communityId)
-      const result = await client.query(`SELECT c.id,c.item_id,c.claimant_id,c.status,c.created_at,
-        r.title AS item_title,u.display_name AS claimant_name
+      const result = await client.query(`SELECT c.id,c.item_id,c.claimant_id,c.related_lost_report_id,c.statement,c.contact_email,
+        c.status,c.reviewer_note,c.created_at,c.updated_at,r.title AS item_title,u.display_name AS claimant_name,
+        COALESCE(jsonb_agg(jsonb_build_object('id',a.question_key,'question',a.question,'answer',a.answer)
+          ORDER BY a.question_key) FILTER (WHERE a.question_key IS NOT NULL), '[]'::jsonb) AS questions
         FROM trace.claims c JOIN trace.reports r ON r.id=c.item_id JOIN trace.users u ON u.id=c.claimant_id
-        WHERE r.community_id=$1 AND c.status IN ('pending','under_review')
-        ORDER BY c.created_at,c.id LIMIT $2`, [communityId, limit])
+        LEFT JOIN trace.claim_answers a ON a.claim_id=c.id
+        WHERE r.community_id=$1
+        GROUP BY c.id,r.title,u.display_name ORDER BY c.created_at,c.id LIMIT $2`, [communityId, limit])
       return result.rows
     })
   }

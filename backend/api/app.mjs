@@ -272,17 +272,7 @@ export function createApp({
       handler: async ({ actor, query }) => {
         const limit = query.limit === undefined ? 50 : Number(query.limit)
         const rows = await repository.listReviewQueue(actor.id, await communityId(), limit)
-        return json(200, {
-          claims: rows.map((row) => ({
-            id: row.id,
-            itemId: row.item_id,
-            itemTitle: row.item_title,
-            claimantId: row.claimant_id,
-            claimantName: row.claimant_name,
-            status: row.status,
-            createdAt: iso(row.created_at),
-          })),
-        })
+        return json(200, { claims: rows.map(toClaim) })
       },
     },
     {
